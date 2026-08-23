@@ -1,0 +1,19 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# SO / editores
+.DS_Store
+.idea/
+.vscode/
+*.log
