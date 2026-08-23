@@ -7,6 +7,9 @@ depois que o material estiver maduro; escolher cedo demais congela o desenho err
 
 **Estado: fase de coleta.** Nada de código ainda, e isso é intencional.
 
+👉 **[`VISAO.md`](VISAO.md) explica o projeto por inteiro** — problema, referência, princípios,
+arquitetura, roadmap, decisões em aberto e riscos. Este README é só o resumo.
+
 ---
 
 ## O problema
