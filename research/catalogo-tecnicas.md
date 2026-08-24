@@ -375,7 +375,7 @@ Multiplicada pelo `z` do ponto, dá onde o raio passa **naquela profundidade** �
 cancela:
 
 ```glsl
-vec2 pointerOffset = mvPosition.xy - uPointerRay * mvPosition.z;
+vec2 pointerOffset = mvPosition.xy + uPointerRay * mvPosition.z;   // soma: a câmera olha para -z, então mv.z < 0
 ```
 
 A influência vira um **cilindro em torno do raio** em vez de esfera em torno de um ponto dele. Bônus:

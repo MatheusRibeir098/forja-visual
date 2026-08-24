@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" />
+    <title>Forja Visual — variante A "A Média" (dev)</title>
+    <style>
+      /* Só da página de dev: a chapa da cena B, para não piscar claro no boot. */
+      body {
+        background: #08080a;
+      }
+
+      #stats {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 10;
+        margin: 0;
+        padding: 0.75rem 1rem;
+        border: 1px solid #2a2b2f;
+        border-radius: 0.5rem;
+        background: #0b0b0cf2;
+        color: #b9b6b0;
+        font-family: ui-monospace, 'SFMono-Regular', 'Liberation Mono', monospace;
+        font-size: 0.75rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <main>
+      <section id="hero"></section>
+    </main>
+    <pre id="stats" hidden>iniciando…</pre>
+    <script type="module" src="/dev/variant-a.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,144 @@
+/* Layer order for the whole app. Declared once, here. */
+@layer reset, base, sections;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4 {
+    overflow-wrap: break-word;
+  }
+
+  ul[role='list'],
+  ol[role='list'] {
+    list-style: none;
+    padding: 0;
+  }
+}
+
+@layer base {
+  html {
+    /* Smooth scroll is motion; it is opt-out by preference, not by a runtime if. */
+    scroll-behavior: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-text);
+    font-size: var(--step-0);
+    line-height: var(--leading-body);
+    /* The WebGL canvas lives behind the document; nothing may scroll it away. */
+    isolation: isolate;
+  }
+
+  ::selection {
+    background: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 3px;
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 0.18em;
+  }
+
+  #gl {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-canvas);
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: var(--space-s);
+    top: var(--space-s);
+    z-index: var(--z-overlay);
+    padding: var(--space-2xs) var(--space-s);
+    background: var(--fg);
+    color: var(--bg);
+    translate: 0 -200%;
+  }
+
+  .skip-link:focus-visible {
+    translate: 0 0;
+  }
+}
+
+@layer sections {
+  main {
+    position: relative;
+    z-index: var(--z-content);
+  }
+
+  .section {
+    min-height: auto;
+    padding-block: var(--space-2xl);
+    padding-inline: var(--gutter);
+  }
+
+  .section > * {
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+
+  /* Only the hero and the relief own a full viewport (spec §5). */
+  #hero,
+  #relevo {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

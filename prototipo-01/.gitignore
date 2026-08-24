@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+.forge/screenshots/
+test-results/
+playwright-report/
+
+*.local
+.DS_Store

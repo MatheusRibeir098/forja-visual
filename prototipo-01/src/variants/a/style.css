@@ -1,0 +1,165 @@
+/*
+ * Variante A — "A Média". Texto HTML sobre a cena B.
+ *
+ * A ordem de camadas é declarada em `base.css` (`reset, base, sections`); aqui
+ * só entramos em `sections`, que é a última, para que as poucas regras que
+ * precisam vencer o layout padrão do hero vençam por camada e não por
+ * especificidade inflada.
+ */
+
+/*
+ * `--va-reveal` é escrito por JS a cada quadro. Registrar o tipo faz o
+ * `calc()` do clip-path ser resolvido como número, e não como token textual.
+ */
+@property --va-reveal {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@layer sections {
+  .va-root {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+  }
+
+  /*
+   * `flex: 1` faz o palco ocupar a seção inteira mesmo quando o hero do site
+   * centraliza os filhos — assim o alinhamento embaixo é nosso, não do pai.
+   * Nada aqui é centralizado: o bloco inteiro é rente à esquerda e ancorado no
+   * rodapé da viewport, com o campo de limalha ocupando o alto.
+   */
+  .va-root > .va-stage {
+    flex: 1 1 auto;
+    display: grid;
+    align-content: end;
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: var(--gutter);
+    padding-block: var(--space-xl) clamp(1.75rem, 1rem + 3.5vh, 3.75rem);
+    /*
+     * Cor fixa, fora dos tokens: o fundo deste hero é sempre a chapa quase
+     * preta do WebGL, em qualquer `prefers-color-scheme`. Herdar `--fg` deixaria
+     * o texto preto sobre preto no tema claro.
+     */
+    color: #f4f2ee;
+  }
+
+  /*
+   * O bloco é a unidade medida em JS: seu retângulo vira a área que o campo de
+   * limalha escurece, garantindo o contraste do texto. Por isso ele existe
+   * separado do palco, que ocupa a seção inteira.
+   */
+  .va-block {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-m);
+    width: 100%;
+  }
+
+  .va-index {
+    color: #9aa1ab;
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .va-title {
+    /*
+     * 13.2vw com piso de 3rem: acima dos 12vw exigidos e ainda cabendo em uma
+     * linha ("Forja Visual", ~6 em de largura) entre as duas gutters.
+     */
+    font-size: clamp(3rem, 13.2vw, 15rem);
+    line-height: 0.82;
+    letter-spacing: -0.035em;
+    margin-block: calc(var(--space-m) * -0.5) 0;
+  }
+
+  /* Fio que cresce com a revelação — o mesmo progresso da máscara, em 1 px. */
+  .va-rule {
+    width: min(100%, 46rem);
+    height: 1px;
+    background: #4a4f57;
+    transform: scaleX(var(--va-reveal, 0));
+    transform-origin: left center;
+  }
+
+  .va-lines {
+    display: grid;
+    gap: var(--space-m) var(--space-xl);
+    align-items: start;
+  }
+
+  @media (min-width: 60rem) {
+    .va-lines {
+      grid-template-columns: minmax(0, 32ch) minmax(0, 34ch);
+    }
+  }
+
+  .va-tagline {
+    font-size: var(--step-1);
+    line-height: 1.35;
+    max-width: 32ch;
+    text-wrap: pretty;
+  }
+
+  .va-goal {
+    font-size: var(--step--1);
+    line-height: 1.55;
+    max-width: 34ch;
+    color: #a7adb6;
+    text-wrap: pretty;
+  }
+
+  .va-replay {
+    justify-self: start;
+    padding: 0.6875rem 0;
+    border: 0;
+    background: none;
+    color: #9aa1ab;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.35em;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .va-replay:hover {
+    color: #f4f2ee;
+  }
+
+  /*
+   * Estado exclusivo do movimento reduzido: com a média ocupando a tela, o
+   * botão precisa de uma base sólida para continuar legível sobre o gradiente.
+   * Sólida, não `backdrop-filter` — blur aqui custaria uma cópia da tela.
+   */
+  .va-stage[data-average='true'] .va-replay {
+    padding-inline: 0.9rem;
+    background: #0a0a0c;
+    color: #f4f2ee;
+  }
+
+  /*
+   * Revelação: o texto é descoberto por uma varredura da esquerda para a
+   * direita, no mesmo sentido da máscara de threshold (que pesa 0.8 de X).
+   * Não é fade-up: o glifo não se move nem muda de opacidade, ele é destapado.
+   */
+  .va-reveal {
+    clip-path: inset(0 calc((1 - var(--va-reveal, 0)) * 100%) 0 0);
+  }
+
+  /* Só durante a transição: manter a camada viva depois disso é custo à toa. */
+  .va-stage[data-animating='true'] .va-reveal {
+    will-change: clip-path;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .va-replay {
+      transition: none;
+    }
+  }
+}

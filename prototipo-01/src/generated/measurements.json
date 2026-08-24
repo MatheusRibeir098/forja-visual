@@ -1,0 +1,66 @@
+{
+  "bundle": {
+    "criticalKb": 2.96,
+    "criticalFiles": [
+      {
+        "file": "assets/index-BRA6aA0E.css",
+        "kb": 1.75
+      },
+      {
+        "file": "index.html",
+        "kb": 0.81
+      },
+      {
+        "file": "assets/index-C6l0cwBv.js",
+        "kb": 0.4
+      }
+    ],
+    "fontsKb": 49.97,
+    "lazyKb": 305.22,
+    "totalKb": 358.15,
+    "measuredAt": "2026-08-24T17:10:08.552Z"
+  },
+  "contrast": {
+    "minContrast": 17.19,
+    "worst": {
+      "selector": "h1#hero-title.t-display",
+      "text": "Forja Visual",
+      "ratio": 17.19,
+      "screenshotClip": {
+        "x": 358,
+        "y": 293,
+        "width": 564,
+        "height": 134
+      }
+    },
+    "measured": 7,
+    "measuredAt": "2026-08-24T17:09:42.674Z"
+  },
+  "fps": {
+    "fpsMedian": 59.88,
+    "fpsP5": 59.88,
+    "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics (RPL-U), OpenGL ES 3.2)",
+    "tier": "high",
+    "durationS": 5,
+    "viewport": "1280x720@2x",
+    "measuredAt": "2026-08-24T17:09:50.352Z"
+  },
+  "fpsLow": {
+    "fpsMedian": 59.88,
+    "fpsP5": 59.52,
+    "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics (RPL-U), OpenGL ES 3.2)",
+    "tier": "low",
+    "durationS": 5,
+    "viewport": "375x667@1x",
+    "measuredAt": "2026-08-24T17:09:55.981Z"
+  },
+  "relief": {
+    "albedoKb": 5.6,
+    "depthKb": 250.26,
+    "grainKb": 54.67,
+    "previewKb": 1.7,
+    "width": 1280,
+    "height": 720,
+    "measuredAt": "2026-08-24T17:21:18.812Z"
+  }
+}

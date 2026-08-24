@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f4f1ea" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <link
+      rel="preload"
+      href="/fonts/instrument-serif-400-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/instrument-sans-var-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <title>Forja Visual — variante C (dev)</title>
+
+    <style>
+      /* Só mobília da página de dev: a variante em si não conhece estas regras. */
+      #depois {
+        min-height: 100vh;
+      }
+
+      .dev-hud {
+        position: fixed;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        z-index: 10;
+        margin: 0;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #cbc4b5;
+        background: #f4f1eae6;
+        color: #3d3a34;
+        font-family: ui-monospace, 'SFMono-Regular', 'Liberation Mono', monospace;
+        font-size: 0.6875rem;
+        line-height: 1.5;
+        white-space: pre;
+      }
+
+      .dev-hud[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main>
+      <section id="hero"></section>
+      <!-- Espaço para rolar: o plano de tinta não pode descolar do texto. -->
+      <section id="depois" aria-hidden="true"></section>
+    </main>
+
+    <pre id="stats" class="dev-hud" hidden>iniciando…</pre>
+
+    <script type="module" src="/dev/variant-c.ts"></script>
+  </body>
+</html>
