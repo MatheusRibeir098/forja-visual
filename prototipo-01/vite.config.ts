@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { renderPrincipios } from './src/sections/principios/markup';
+import { renderSocialMeta } from './src/content/social';
 import type { IndexHtmlTransformContext, Plugin } from 'vite';
 
 const THREE_CHUNK_ID = 'three';
@@ -22,6 +23,18 @@ function manualChunks(moduleId: string): string | undefined {
 const PRINCIPIOS_MARKER = '<!--forja:principios-->';
 
 /**
+ * Marcador que `index.html` reserva no `<head>` para as tags de
+ * compartilhamento. Elas são geradas, e não escritas à mão, para que o domínio
+ * absoluto exigido por `og:url`/`og:image` exista num lugar só
+ * (`SITE_ORIGIN`, em `src/content/social.ts`) — trocar de domínio depois do
+ * deploy é editar uma linha, não caçar strings pelo `<head>`.
+ */
+const SOCIAL_MARKER = '<!--forja:social-->';
+
+/** Recuo do marcador dentro do `<head>`, repetido nas tags geradas. */
+const SOCIAL_INDENT = ' '.repeat(4);
+
+/**
  * Caminho absoluto do `index.html` real da aplicação (resolvido a partir da
  * localização deste arquivo, não do `cwd`, para não depender de onde o
  * comando é disparado). É contra esse caminho que o plugin decide se deve
@@ -29,20 +42,26 @@ const PRINCIPIOS_MARKER = '<!--forja:principios-->';
  */
 const ROOT_INDEX_HTML = resolve(fileURLToPath(new URL('.', import.meta.url)), 'index.html');
 
+/**
+ * `transformIndexHtml` roda para qualquer .html servido pelo Vite — inclusive
+ * as páginas de inspeção em dev/*.html, que não têm (e não precisam ter) os
+ * marcadores. `ctx.filename` é o caminho absoluto do arquivo no disco (tanto em
+ * dev quanto em build, já que dev/*.html não são entry points do build);
+ * comparar contra ele é mais robusto que checar a URL da requisição, que pode
+ * ser reescrita/proxiada. Só o index.html real da aplicação precisa (e deve)
+ * falhar alto quando um marcador some.
+ */
+function isAppIndex(ctx: IndexHtmlTransformContext): boolean {
+  return ctx.filename === ROOT_INDEX_HTML;
+}
+
 function inlinePrincipios(): Plugin {
   return {
     name: 'forja-inline-principios',
     transformIndexHtml: {
       order: 'pre',
       handler(html: string, ctx: IndexHtmlTransformContext): string {
-        // `transformIndexHtml` roda para qualquer .html servido pelo Vite —
-        // inclusive as páginas de inspeção em dev/*.html, que não têm (e não
-        // precisam ter) o marcador de F6. `ctx.filename` é o caminho absoluto
-        // do arquivo no disco (tanto em dev quanto em build, já que dev/*.html
-        // não são entry points do build); comparar contra ele é mais robusto
-        // que checar a URL da requisição, que pode ser reescrita/proxiada.
-        // Só o index.html real da aplicação precisa (e deve) falhar alto.
-        if (ctx.filename !== ROOT_INDEX_HTML) {
+        if (!isAppIndex(ctx)) {
           return html;
         }
         if (!html.includes(PRINCIPIOS_MARKER)) {
@@ -56,8 +75,28 @@ function inlinePrincipios(): Plugin {
   };
 }
 
+function forjaSocialMeta(): Plugin {
+  return {
+    name: 'forja-social-meta',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html: string, ctx: IndexHtmlTransformContext): string {
+        if (!isAppIndex(ctx)) {
+          return html;
+        }
+        if (!html.includes(SOCIAL_MARKER)) {
+          // Sem as tags o link compartilhado vira um cartão cinza vazio — falha
+          // que só aparece depois de publicado. Melhor quebrar o build.
+          throw new Error(`vite: marcador ${SOCIAL_MARKER} ausente em index.html`);
+        }
+        return html.replace(SOCIAL_MARKER, renderSocialMeta(SOCIAL_INDENT));
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [inlinePrincipios()],
+  plugins: [inlinePrincipios(), forjaSocialMeta()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

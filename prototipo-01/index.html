@@ -6,10 +6,14 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f5f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#101010" media="(prefers-color-scheme: dark)" />
-    <meta
-      name="description"
-      content="Forja Visual — por que sites gerados por IA parecem iguais, e o que é preciso para escapar da média."
-    />
+    <!--
+      Descrição, Open Graph e Twitter Card entram aqui no build e no dev server,
+      a partir de `src/content/social.ts` — mesmo mecanismo de F6 (ver
+      `forjaSocialMeta` em `vite.config.ts`). O domínio absoluto que `og:url` e
+      `og:image` exigem mora numa constante só, `SITE_ORIGIN`, naquele arquivo.
+    -->
+    <!--forja:social-->
+
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <link

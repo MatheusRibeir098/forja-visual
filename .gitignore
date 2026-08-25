@@ -21,3 +21,6 @@ build/
 # Instalação local do template ao ser testado
 plugin/templates/site/node_modules/
 plugin/templates/site/dist/
+
+# Testes locais da ferramenta (sites gerados pelo /forge-visual)
+sandbox/
