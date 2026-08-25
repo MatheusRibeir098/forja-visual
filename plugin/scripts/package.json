@@ -1,0 +1,6 @@
+{
+  "name": "forge-visual-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Marcador de módulo: sem ele, o tsx trata estes scripts como CJS (a pasta do plugin não tem package.json) e o top-level await falha. Não declara dependências de propósito — playwright-core é resolvido a partir do projeto medido, em lib/chrome.ts."
+}

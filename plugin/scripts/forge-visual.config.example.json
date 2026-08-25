@@ -1,0 +1,85 @@
+{
+  "//": "EXEMPLO. Copie para a RAIZ DO SITE medido como `forge-visual.config.json` e apague o que não usar — todo campo é opcional, e o que faltar cai no padrão do medidor. Toda chave que começa com `//` é comentário: pode ficar (os medidores ignoram chaves desconhecidas) ou sair. Precedência de cada opção: argumento de linha de comando > este arquivo > brief.json (só o orçamento) > padrão embutido. Alternativa de caminho: `.forge-visual/measure.config.json`.",
+
+  "//url": "Site já servido por alguém (o `pnpm dev` que você deixou aberto). Com ele, nenhum medidor sobe servidor. Sem ele, sobe-se o preview em `port`. Na fase de divergência a URL muda por variante — passe `--url` na linha de comando em vez de fixar aqui.",
+  "url": "http://localhost:5173",
+
+  "//port": "Porta do preview quando `url` não é dada. Se ela já responder, o medidor reaproveita o servidor e não mata nada de ninguém.",
+  "port": 4173,
+
+  "//previewCommand": "Comando que sobe o preview; `{port}` é substituído. Padrão: `pnpm exec vite preview --port {port} --strictPort`.",
+  "previewCommand": "pnpm exec vite preview --port {port} --strictPort",
+
+  "//dist": "Pasta do build, medida por measure-bundle. Padrão: `dist`.",
+  "dist": "dist",
+
+  "//out": "Arquivo onde as medições são acumuladas (uma chave de topo por medidor). Padrão: `.forge-visual/medicoes/measurements.json`. `measure-variant` IGNORA este campo de propósito — cada variante grava em `.forge-visual/medicoes/variant-<id>.json`, senão a terceira medição apagaria as duas primeiras.",
+  "out": ".forge-visual/medicoes/measurements.json",
+
+  "//budget": "Orçamento de bytes, em KB gzip. Só INFORMA: passar do teto não reprova a entrega (spec §6). O `budget` do brief.json, quando passado em `--brief`, tem precedência sobre este.",
+  "budget": {
+    "criticalKb": 300,
+    "lazyKb": 600,
+    "fontsKb": 80,
+    "rationale": "de onde estes números saíram — a frase aparece no relatório do bundle"
+  },
+
+  "//bundle": "measure-bundle.ts — peso gzip de dist/, separado por papel.",
+  "bundle": {
+    "//buildCommand": "Só é usado com `--build`. Padrão: `pnpm build`.",
+    "buildCommand": "pnpm build",
+    "//fontsKb": "Teto de fontes, quando não vem do `budget` acima.",
+    "fontsKb": 80
+  },
+
+  "//contrast": "measure-contrast.ts — contraste WCAG medido por pixel, nunca dos tokens de CSS.",
+  "contrast": {
+    "//min": "Piso que reprova (código 1). O portão do projeto é 7:1.",
+    "min": 7,
+    "//selectors": "Quais elementos entram na varredura. Padrão: a lista de tags que desenham texto.",
+    "selectors": "h1,h2,h3,h4,h5,h6,p,li,a,blockquote,figcaption,dt,dd,summary,label,button,th,td,span,strong,em,small,code",
+    "//viewport": "Formato LARGURAxALTURA, em px CSS. Padrão: 1280x720.",
+    "viewport": "1280x720",
+    "//settleMs": "Espera depois do `load` antes da primeira foto — o tempo da revelação de entrada.",
+    "settleMs": 900,
+    "//revealMs": "Espera depois de cada rolagem da varredura, para a revelação daquela faixa terminar.",
+    "revealMs": 400,
+    "//shot": "Onde salvar o print do pior caso medido.",
+    "shot": ".forge-visual/screenshots/contrast-worst.png"
+  },
+
+  "//fps": "measure-fps.ts — cadência de quadro e tempo de GPU, em GPU real (renderer de software aborta com código 2).",
+  "fps": {
+    "//min": "Piso do tier high. O portão do projeto é 60.",
+    "min": 60,
+    "//minLow": "Piso do tier low (375x667@1x).",
+    "minLow": 30,
+    "//only": "`high`, `low` ou `both` (padrão).",
+    "only": "both",
+    "//durationMs": "Janela de amostra por execução. Padrão: 5000.",
+    "durationMs": 5000,
+    "//runs": "Execuções por tier. Uma reprovação já dispara execuções de confirmação sozinha.",
+    "runs": 1,
+    "//canvas": "Seletor do canvas WebGL cronometrado. Padrão: `#gl,[data-forge-gl]`. CONVENÇÃO DO PROJETO: o canvas WebGL do site tem `id=\"gl\"` — seguindo-a, este campo não é necessário. `[data-forge-gl]` é a rede: o medidor marca sozinho qualquer canvas que peça contexto WebGL.",
+    "canvas": "#gl,[data-forge-gl]",
+    "//highViewport": "Formato LARGURAxALTURA@DPR. Padrão: 1280x720@2.",
+    "highViewport": "1280x720@2",
+    "//lowViewport": "Padrão: 375x667@1.",
+    "lowViewport": "375x667@1"
+  },
+
+  "//variant": "measure-variant.ts — bgLuminance, motionCoverage e typeScaleRatio de UMA variante do hero, medidos do pixel e do DOM (checks de colisão 4, 5 e 6 da divergência).",
+  "variant": {
+    "//viewport": "Padrão: 1280x720. O medidor usa dpr 1: luminância e diferença entre quadros não melhoram com mais amostras por pixel CSS.",
+    "viewport": "1280x720",
+    "//settleMs": "Quanto se espera pela revelação de entrada ANTES da primeira foto. Padrão: 2500. Medir no primeiro quadro de um hero mede a cortina de abertura, não a variante — o relatório imprime `frameLuminanceAtLoad` para você conferir se a espera bastou.",
+    "settleMs": 2500,
+    "//gaps": "Intervalos, em ms, entre os quadros comparados para o movimento. Padrão: [1000, 1400, 900] — três pares com intervalos diferentes de propósito, porque dois quadros a 1 s de distância caem no mesmo ponto de um ciclo de 1 s e a página é lida como parada.",
+    "gaps": [1000, 1400, 900],
+    "//typeScope": "`viewport` (padrão: só o texto que está na tela em repouso) ou `document` (a página inteira, inclusive abaixo da dobra).",
+    "typeScope": "viewport",
+    "//shot": "Caminho do print do quadro em repouso. SEM PADRÃO — sem este campo, nenhuma imagem é gravada. Imagem é o item mais caro do loop de orquestração; quem captura print para o dono é o `visual-tester`.",
+    "shot": ".forge-visual/screenshots/variant-rest.png",
+    "//bgMin-bgMax": "NÃO ponha a faixa de luminância aqui. Ela é pré-atribuída POR VARIANTE (tabela §2 do divergencia.md) e este arquivo é compartilhado pelas três: passe `--bg-min` e `--bg-max` na linha de comando de cada variante."
+  }
+}

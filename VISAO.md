@@ -208,6 +208,68 @@ ser entre pontos distantes do espaço que a pessoa já delimitou.
 fixado antes delas. O L6 do protótipo 01 mostrou que teto arbitrário no início produz site que passa
 em todas as métricas e não impressiona — ver o registro da passada de excelência no `progress.md`.
 
+## 5.2 Desenho da ferramenta — decidido com o dono em 2026-08-25
+
+Contexto: depois de ver o protótipo 01 pronto, o dono perguntou *"a ferramenta ainda não existe,
+ou existe?"*. A resposta honesta é que existe **a metade de trás**: a fase 4 (construção com
+subagentes) e parte da 5 (medição, mas presa dentro do protótipo). As fases 1–3 foram executadas
+**por um humano e um orquestrador**, à mão. Este bloco registra o desenho combinado para elas.
+
+### O que produziu a qualidade — e nenhum item é "prompt bonito"
+
+1. **Conhecimento** — catálogo de técnicas com *mecanismo*, não receita (P4)
+2. **Proibições** — a lista de reprovação da §7: sem `postprocessing`, GSAP, Lenis, cursor custom,
+   biblioteca de componentes. Isto pesa mais que qualquer instrução de "seja criativo"
+3. **Rejeição** — três variantes **construídas de verdade** e o dono matando duas (P3)
+4. **Portões** — medição reprovando o build, não opinião (P6)
+
+Corolário a não esquecer: **o que tira da média é restrição e rejeição, não incentivo.** Pedir
+"faça algo impressionante" produz a média com adjetivos.
+
+### Forma: plugin do Claude Code
+
+```
+forge-visual/
+├── skills/
+│   ├── forge-visual/       ← /forge-visual: questionário + condução
+│   ├── visual-techniques/  ← as 16 técnicas, consultáveis por mecanismo
+│   └── visual-guardrails/  ← proibições + as 9 regras transversais
+├── agents/   visual-dev, visual-tester
+└── scripts/  medidores portáteis (contraste, FPS, bytes)
+```
+
+### Decisões do dono
+
+1. **Perguntar E mostrar, nessa ordem.** O questionário abre por texto (ex.: "futurista"), e a
+   ferramenta então **constrói 3 amostras reais** e o dono escolhe. E escolhe em dois níveis: a
+   direção vencedora **e quais características das perdedoras sobrevivem** — foi exatamente o que
+   aconteceu no L2 do protótipo 01, onde A venceu mas as técnicas de B e C foram preservadas.
+   Amostra tem de ser **construída e medida**, nunca descrita: o dono escolheu a variante A olhando
+   ela rodar em GPU real; um mockup em texto o teria feito escolher errado.
+2. **Três variantes.** Custa 3×, e foi justamente com três que o defeito apareceu — ver abaixo.
+3. **Stack fixa, sempre do zero:** TypeScript puro + Vite + three, sem framework. Não é limitação
+   por preguiça: sem framework o site controla cada quadro, carrega menos e **não herda os padrões
+   visuais que vêm de biblioteca pronta** — que são exatamente os que fazem tudo parecer igual.
+   Quem já tem projeto React fica de fora **por ora**; melhor entregar um caminho que funciona do
+   que dois que funcionam pela metade.
+
+### O ponto que decide se a ferramenta funciona
+
+**A divergência precisa ser mecânica, não pedida.** No protótipo 01 ela falhou: as três variantes
+saíram da **mesma família editorial**, e isso só foi descoberto quando o dono viu o site pronto e
+disse *"achei que seria futurista"*. Um agente instruído a "gerar 3 direções diferentes" converge
+sozinho — é o P3 falhando em silêncio, que a §10 já classificava como risco existencial.
+
+Mecanismo proposto: cada variante nasce em **contexto limpo**, com um **ancoradouro obrigatório e
+distinto** (uma pela luz, uma pelo material, uma pela tipografia…) e **proibida de usar as técnicas
+que as outras escolheram**. Divergência por construção, não por pedido.
+
+⚠️ **Ainda não provado:** o protótipo 01 é N=1 e prova **qualidade**, não **generalidade**. Não
+sabemos se o método entrega o mesmo nível em outra estética. O teste que responde é um protótipo
+**cyberpunk**, conduzido pelo questionário e **sem briefings escritos à mão pelo orquestrador** —
+porque parte da qualidade de hoje veio de julgamento estético que não está codificado em lugar
+nenhum ("não pode virar tarja preta", "atenue por cor, não por alpha", "piada sussurrada").
+
 ---
 
 # 6. Formato: skill, MCP ou framework?

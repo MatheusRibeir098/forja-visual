@@ -1,0 +1,86 @@
+/*
+ * Tokens estruturais do site.
+ *
+ * ⚠️ ESTE ARQUIVO NÃO DECIDE COR. Os valores de `--bg`/`--fg`/`--accent`/
+ * `--muted`/`--rule` abaixo são **placeholders propositalmente feios**: a
+ * paleta vem do brief, e um magenta gritante na tela é mais barato de
+ * descobrir que uma paleta plausível que ninguém escolheu. Enquanto eles não
+ * forem trocados, o portão de contraste (`measure-contrast`, mínimo 7:1)
+ * reprova a entrega — o que é exatamente o comportamento desejado.
+ *
+ * As famílias tipográficas também são placeholder: `--font-display` e
+ * `--font-text` apontam para stacks do sistema até o site auto-hospedar as
+ * fontes do brief (woff2, subset latin, `@font-face` próprio — nunca chamada
+ * de rede em runtime).
+ *
+ * O que **não** é placeholder e pode ficar como está: escala de tipo fluida,
+ * escala de espaço, medida de leitura, easings e a pilha de z. São estrutura,
+ * e um site que as troca sem motivo só gasta tempo.
+ *
+ * Os passos fluidos interpolam com clamp() entre viewports de 375px e 1440px.
+ */
+
+:root {
+  /* Troque para `light` se o brief pedir fundo claro. */
+  color-scheme: dark;
+
+  /* --- Escala de tipo (razão 1.2 @375px -> 1.333 @1440px) --- */
+  --step--1: clamp(0.833rem, 0.796rem + 0.16vw, 0.938rem);
+  --step-0: clamp(1rem, 0.956rem + 0.19vw, 1.125rem);
+  --step-1: clamp(1.2rem, 1.094rem + 0.45vw, 1.5rem);
+  --step-2: clamp(1.44rem, 1.243rem + 0.84vw, 2rem);
+  --step-3: clamp(1.728rem, 1.398rem + 1.41vw, 2.666rem);
+  --step-4: clamp(2.074rem, 1.553rem + 2.22vw, 3.553rem);
+  --step-5: clamp(2.488rem, 1.696rem + 3.38vw, 4.736rem);
+  /* Display superdimensionado: >= 12vw é o piso de um título que "acontece". */
+  --step-display: clamp(2.75rem, 12vw, 13rem);
+
+  /* --- Famílias: PLACEHOLDER, trocar pelas do brief --- */
+  --font-display: ui-serif, Georgia, serif;
+  --font-text: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Liberation Mono', monospace;
+
+  /* --- Ritmo --- */
+  --leading-tight: 1.05;
+  --leading-snug: 1.25;
+  --leading-body: 1.6;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.08em;
+
+  /* --- Escala de espaço (fluida onde importa para o ritmo entre seções) --- */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-s: 1rem;
+  --space-m: 1.5rem;
+  --space-l: 2rem;
+  --space-xl: clamp(2.5rem, 1.6rem + 3.8vw, 5rem);
+  --space-2xl: clamp(4rem, 2.4rem + 6.8vw, 8.5rem);
+  --space-3xl: clamp(6rem, 3.4rem + 11vw, 13rem);
+
+  /* --- Layout --- */
+  --measure: 62ch;
+  --gutter: clamp(1.25rem, 0.6rem + 2.8vw, 4rem);
+  --content-max: 78rem;
+
+  /* --- Movimento (durações são remedidas por seção) --- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+
+  /* --- Cor: PLACEHOLDER. Substituir pela paleta do brief. --- */
+  --bg: #ff00ff;
+  --fg: #00ffff;
+  --accent: #ffff00;
+  --muted: #ff8800;
+  --rule: #00ff00;
+  --selection-bg: var(--fg);
+  --selection-fg: var(--bg);
+
+  /* --- Pilha de z --- */
+  --z-canvas: -1;
+  --z-content: 0;
+  --z-overlay: 10;
+}

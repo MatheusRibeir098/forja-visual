@@ -17,3 +17,7 @@ build/
 .idea/
 .vscode/
 *.log
+
+# Instalação local do template ao ser testado
+plugin/templates/site/node_modules/
+plugin/templates/site/dist/

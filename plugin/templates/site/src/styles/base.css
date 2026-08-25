@@ -1,0 +1,158 @@
+/*
+ * Base estrutural: reset, camadas e o posicionamento do canvas.
+ *
+ * Nada aqui decide estética — cor e tipo vêm de `tokens.css`, e o layout de
+ * cada seção vem da própria seção. Este arquivo existe para que a ordem das
+ * camadas CSS seja declarada **uma vez** e para que o canvas fique onde o
+ * motor espera que ele fique.
+ */
+
+/* Ordem das camadas do app inteiro. Declarada uma vez, aqui. */
+@layer reset, base, sections;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4 {
+    overflow-wrap: break-word;
+  }
+
+  ul[role='list'],
+  ol[role='list'] {
+    list-style: none;
+    padding: 0;
+  }
+}
+
+@layer base {
+  html {
+    /* Scroll suave é movimento: sai por preferência do usuário, não por um if. */
+    scroll-behavior: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-text);
+    font-size: var(--step-0);
+    line-height: var(--leading-body);
+    /* O canvas WebGL vive atrás do documento; nada pode rolá-lo para fora. */
+    isolation: isolate;
+  }
+
+  ::selection {
+    background: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 3px;
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 0.18em;
+  }
+
+  #gl {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-canvas);
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: var(--space-s);
+    top: var(--space-s);
+    z-index: var(--z-overlay);
+    padding: var(--space-2xs) var(--space-s);
+    background: var(--fg);
+    color: var(--bg);
+    translate: 0 -200%;
+  }
+
+  .skip-link:focus-visible {
+    translate: 0 0;
+  }
+}
+
+@layer sections {
+  main {
+    position: relative;
+    z-index: var(--z-content);
+  }
+
+  .section {
+    min-height: auto;
+    padding-block: var(--space-2xl);
+    padding-inline: var(--gutter);
+  }
+
+  .section > * {
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+
+  /*
+   * QUEM NÃO DESENHA É OPACO.
+   *
+   * O canvas é criado sem alpha (`engine/gl.ts`) e ninguém dá clear global (a
+   * regra está escrita em `src/main.ts`): fora do recorte de quem desenhou, o
+   * que fica na tela é preto, não o fundo do documento. Toda seção que **não**
+   * tem WebGL precisa, portanto, ser o fundo do próprio pedaço:
+   *
+   *   #minha-secao-sem-webgl { background: var(--bg); }
+   *
+   * As seções que desenham ficam transparentes de propósito — é por elas que a
+   * cena aparece. Entre as duas regras, cada pixel da página tem um dono só.
+   */
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- PLACEHOLDER: acerte color-scheme e theme-color com a paleta do brief. -->
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="PLACEHOLDER — descrição do site, uma frase." />
+
+    <title>PLACEHOLDER — título do site</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+    <!--
+      O canvas é único e vive atrás do documento inteiro (`#gl` em
+      `styles/base.css`). `aria-hidden` porque ele não é conteúdo: tudo que
+      precisa ser lido tem que existir no HTML/DOM, não só nos pixels.
+      Não crie um segundo canvas — ver A REGRA DO CANVAS em `src/main.ts`.
+
+      `id="gl"` não é estilo: é a convenção que os medidores do plugin
+      (measure-fps.ts, measure-variant.ts) procuram primeiro
+      (`#gl,[data-forge-gl]`, em scripts/lib/chrome.ts). Um canvas `#gl`
+      é medido sem nenhum argumento extra; renomeá-lo ou duplicá-lo
+      obriga `--canvas` em toda chamada de medição.
+    -->
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main id="conteudo">
+      <!--
+        Cada seção do site é uma <section id="..."> aqui, na ordem do
+        argumento, com o esqueleto que já é legível sem JavaScript: um título
+        de verdade e o `aria-labelledby` que a seção mantém válido ao montar.
+        O `id` é o que liga a seção ao MOUNTS de `src/main.ts`.
+
+        Apague este exemplo assim que a primeira seção real existir.
+      -->
+      <section id="hero" class="section" aria-labelledby="hero-title">
+        <h1 id="hero-title">PLACEHOLDER</h1>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
