@@ -18,10 +18,15 @@ import {
   fieldFragment,
   fieldVertex,
 } from '@/shaders/variantAField';
-import type { Layer, Pointer, Tier } from '@/engine';
+import type { Damped, Layer, Pointer, Tier } from '@/engine';
 
 /**
- * Camada B: o campo de limalha de ferro sobre chapa quase preta.
+ * O campo de limalha de ferro sobre chapa quase preta — "o específico".
+ *
+ * É a camada B do hero (o que sobra depois da máscara comer a média) e a
+ * camada A da F2 (o estado de onde o scroll parte). A F2 monta a sua própria
+ * instância: as duas seções precisam de estados independentes de
+ * `setDirectToScreen` no mesmo quadro da troca.
  *
  * As limalhas são instâncias de um quad; o vertex shader as gira segundo o
  * campo magnético (ver `@/shaders/variantAField`). Aqui em cima ficam só as
@@ -101,6 +106,13 @@ const PARAM_COMPONENTS = 2;
 
 const FULLSCREEN_TRIANGLE = new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]);
 
+/** Zera a transição de um valor amortecido: ele passa a valer o alvo agora. */
+function snap(damped: Damped, value: number): number {
+  damped.value = value;
+  damped.target = value;
+  return value;
+}
+
 /** Hash determinístico em [0,1): o campo precisa ser o mesmo em toda recarga. */
 function hash(index: number, salt: number): number {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453123;
@@ -119,6 +131,13 @@ export interface FieldScene extends Layer {
   resize(widthPx: number, heightPx: number): void;
   /** Um passo de animação: segue o cursor com amortecimento e avança o tempo. */
   update(dt: number, elapsed: number, pointer: Pointer): void;
+  /**
+   * Cola o cursor amortecido no valor atual, sem transição. Serve para a cena
+   * que **assume a tela no meio do caminho** (a F2 herda o campo do hero): sem
+   * isto o ímã sairia do centro e correria até o cursor na primeira fração de
+   * segundo, denunciando que a cena acabou de nascer.
+   */
+  snapToPointer(pointer: Pointer): void;
   /** Retângulo do texto HTML, em px CSS relativos à viewport. `null` desliga a reserva. */
   setSafeArea(rect: SafeAreaRect | null, widthPx: number, heightPx: number): void;
   setDirectToScreen(direct: boolean): void;
@@ -282,6 +301,17 @@ export function createFieldScene(tier: Tier, animated: boolean): FieldScene {
 
       // Sob movimento reduzido o campo é uma fotografia: os polos não derivam.
       fieldUniforms.uTime.value = animated ? elapsed : 0;
+    },
+
+    snapToPointer(pointer: Pointer): void {
+      const active = pointer.active ? 1 : 0;
+      fieldUniforms.uPointerRay.value.set(snap(rayX, pointer.ray.x), snap(rayY, pointer.ray.y));
+      fieldUniforms.uPointerActive.value = snap(presence, active);
+      backdropUniforms.uPointerActive.value = active;
+      backdropUniforms.uPointerNdc.value.set(
+        snap(pointerNdcX, pointer.ndc.x),
+        snap(pointerNdcY, pointer.ndc.y),
+      );
     },
 
     setSafeArea(rect: SafeAreaRect | null, widthPx: number, heightPx: number): void {

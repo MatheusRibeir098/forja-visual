@@ -1,4 +1,4 @@
-import { PerspectiveCamera } from 'three';
+import { PerspectiveCamera, Vector3 } from 'three';
 import type { Mesh } from 'three';
 import type { GL } from './gl';
 import type { Pointer } from './pointer';
@@ -91,8 +91,64 @@ export function domRectToWorld(rect: DomRectLike, viewport: ViewportSize): World
 }
 
 /** fov vertical, em graus, que faz `heightPx` px caberem exatos na distância `distancePx`. */
-export function fovForHeight(heightPx: number, distancePx: number = CAMERA_DISTANCE_PX): number {
+export function fovForHeight(
+  heightPx: number,
+  distancePx: number = CAMERA_DISTANCE_PX,
+): number {
   return 2 * Math.atan(heightPx / 2 / distancePx) * RAD_TO_DEG;
+}
+
+/** Retângulo em px de tela, nos mesmos eixos de `getBoundingClientRect()`. */
+export interface ScreenRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** Reusados na projeção: ela roda dentro do quadro e não pode alocar. */
+const projectedTopLeft = new Vector3();
+const projectedBottomRight = new Vector3();
+
+/**
+ * Caminho **inverso** do módulo: projeta os cantos de um mesh rastreado de volta
+ * para px de tela. Se a matemática de 1 px = 1 unidade estiver certa, o
+ * resultado é o próprio `getBoundingClientRect()` do elemento.
+ *
+ * Existe em produção, e não só na página de dev, porque é o que transforma o
+ * aceite da técnica ("plano e texto não descolam") em algo **medido** em vez de
+ * acreditado — tanto por um teste unitário quanto pelo E2E.
+ *
+ * Assume o mesh como `domSync` o deixa: no plano `z = 0`, sem rotação, escala em
+ * px. `camera.updateMatrixWorld()` precisa já ter rodado (o render faz isso).
+ */
+export function projectMeshToScreen(
+  mesh: Mesh,
+  camera: PerspectiveCamera,
+  viewport: ViewportSize,
+  out: ScreenRect = { left: 0, top: 0, right: 0, bottom: 0 },
+): ScreenRect {
+  const halfWidth = mesh.scale.x / 2;
+  const halfHeight = mesh.scale.y / 2;
+  const { x, y } = mesh.position;
+  projectedTopLeft.set(x - halfWidth, y + halfHeight, 0).project(camera);
+  projectedBottomRight.set(x + halfWidth, y - halfHeight, 0).project(camera);
+
+  out.left = (projectedTopLeft.x * 0.5 + 0.5) * viewport.width;
+  out.top = (-projectedTopLeft.y * 0.5 + 0.5) * viewport.height;
+  out.right = (projectedBottomRight.x * 0.5 + 0.5) * viewport.width;
+  out.bottom = (-projectedBottomRight.y * 0.5 + 0.5) * viewport.height;
+  return out;
+}
+
+/** Maior desvio, em px, entre o retângulo do DOM e a projeção do mesh. */
+export function screenRectDelta(dom: ScreenRect, projected: ScreenRect): number {
+  return Math.max(
+    Math.abs(dom.left - projected.left),
+    Math.abs(dom.top - projected.top),
+    Math.abs(dom.right - projected.right),
+    Math.abs(dom.bottom - projected.bottom),
+  );
 }
 
 export interface DomSync {
@@ -109,6 +165,17 @@ export interface DomSync {
    * posiciona os meshes.
    */
   update(): void;
+  /**
+   * Retângulo do elemento **na leitura deste quadro** — o mesmo `DOMRect` que
+   * posicionou o mesh, sem um segundo `getBoundingClientRect()`.
+   *
+   * É o que permite uma seção derivar progresso de scroll por bloco (16 fichas
+   * do catálogo, por exemplo) sem transformar 16 planos em 32 leituras de
+   * layout por quadro. `null` quando o elemento não está rastreado.
+   */
+  rectOf(el: Element): Readonly<DomRectLike> | null;
+  /** Tamanho do viewport usado na leitura deste quadro. Objeto estável. */
+  readonly viewport: Readonly<ViewportSize>;
   dispose(): void;
 }
 
@@ -144,6 +211,12 @@ export function createDomSync(host: DomSyncHost): DomSync {
 
   /** Array (e não Set) porque `update()` percorre isto duas vezes por quadro. */
   const entries: TrackEntry[] = [];
+  /**
+   * Índice para `rectOf`. Um `Map` em vez de varrer `entries`: a seção do
+   * catálogo consulta um retângulo por ficha, todo quadro, e uma busca linear
+   * dentro de um laço já é O(n²) com 16 fichas na tela.
+   */
+  const entryByElement = new Map<Element, TrackEntry>();
   /** Reusado a cada quadro: `update()` não pode alocar. */
   const viewport: ViewportSize = { width: gl.size.w, height: gl.size.h };
 
@@ -216,22 +289,34 @@ export function createDomSync(host: DomSyncHost): DomSync {
       if (disposed) throw new Error('createDomSync: track() chamado após dispose()');
       const entry: TrackEntry = { el, mesh, left: 0, top: 0, width: 0, height: 0 };
       entries.push(entry);
+      entryByElement.set(el, entry);
       // Sem uma primeira medida o mesh apareceria com escala 1×1 px no centro
       // até o próximo quadro — um flash de um quadro em cada montagem.
       update();
       return () => {
         const index = entries.indexOf(entry);
-        if (index >= 0) entries.splice(index, 1);
+        if (index < 0) return;
+        entries.splice(index, 1);
+        // Só sai do índice se nenhuma outra entrada ainda usa o elemento: o
+        // mesmo bloco pode ter dois planos (fundo e realce).
+        if (entryByElement.get(el) === entry) entryByElement.delete(el);
       };
     },
 
     update,
+
+    rectOf(el: Element): Readonly<DomRectLike> | null {
+      return entryByElement.get(el) ?? null;
+    },
+
+    viewport,
 
     dispose(): void {
       if (disposed) return;
       disposed = true;
       stopResize();
       entries.length = 0;
+      entryByElement.clear();
     },
   };
 }

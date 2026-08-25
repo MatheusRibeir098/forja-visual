@@ -93,6 +93,14 @@ export function createEngine(canvas: HTMLCanvasElement): Engine | null {
 export { computeBeatProgress, createBeats } from './beats';
 export { MASK_ASPECT, createComposite } from './composite';
 export { DEFAULT_DAMP, createDamped, damp, dampingRate } from './damp';
+export {
+  CAMERA_DISTANCE_PX,
+  createDomSync,
+  domRectToWorld,
+  fovForHeight,
+  projectMeshToScreen,
+  screenRectDelta,
+} from './domSync';
 export { createGL } from './gl';
 export { POINTER_RAY_GLSL, createPointer, pointerOffset } from './pointer';
 export { TIER_SETTINGS, detectTier } from './tier';
@@ -101,6 +109,14 @@ export { createTicker } from './ticker';
 export type { Beat, BeatEnd, BeatOptions, BeatStart, Beats, BeatsOptions } from './beats';
 export type { Composite, Layer } from './composite';
 export type { DampOptions, Damped } from './damp';
+export type {
+  DomRectLike,
+  DomSync,
+  DomSyncHost,
+  ScreenRect,
+  ViewportSize,
+  WorldPoint,
+} from './domSync';
 export type { GL, GLSize, ResizeListener } from './gl';
 export type { Pointer, Vec2, Vec3 } from './pointer';
 export type { Tier, TierReport, TierSettings } from './tier';

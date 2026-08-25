@@ -14,13 +14,14 @@ Spec: `../prompt.md`. Lotes paralelos = arquivos disjuntos.
 ## L1b — contrato Engine (serial)
 - [x] T2b — engine/index.ts createEngine() + remove fallback rAF de beats + lint field.ts + vitest.config no tsconfig.node — depende de: T2,T3,T5 — arquivos: src/engine/index.ts, src/engine/beats.ts, scripts/lib/field.ts, tsconfig.node.json
 
-## L2 — divergência (paralelo, após L1) → dono escolhe por print
-- [ ] T6 — Variante A "A Média" (I.1 + III.1) — depende de: T2,T3,T4 — lote: L2 — arquivos: src/variants/a/*
-- [ ] T7 — Variante B "Bigorna" (IV.1 + V.4) — depende de: T2,T3,T4,T5 — lote: L2 — arquivos: src/variants/b/*, src/shaders/relight.ts
-- [ ] T8 — Variante C "Revista Técnica" (I.2 + V.2) — depende de: T2,T3,T4 — lote: L2 — arquivos: src/variants/c/*, src/engine/domSync.ts, src/shaders/domPlane.ts
+## L2 — divergência (paralelo, após L1) → **FECHADO: A vence** (dono, 2026-08-24; tester PASSOU nas 3)
+- [x] T6 — Variante A "A Média" (I.1 + III.1) — depende de: T2,T3,T4 — lote: L2 — arquivos: src/variants/a/*
+- [x] T7 — Variante B "Bigorna" (IV.1 + V.4) — depende de: T2,T3,T4,T5 — lote: L2 — arquivos: src/variants/b/*, src/shaders/relight.ts
+- [x] T8 — Variante C "Revista Técnica" (I.2 + V.2) — depende de: T2,T3,T4 — lote: L2 — arquivos: src/variants/c/*, src/engine/domSync.ts, src/shaders/domPlane.ts
 
 ## L3 — seções (paralelo, após escolha)
-- [ ] T9 — Hero (vencedora) + Tese F2 — depende de: L2 — lote: L3 — arquivos: src/sections/{hero,tese}/*
+<!-- B e C rejeitadas como hero; técnicas preservadas: IV.1 (B) → T11, I.2 (C) → T12, grade editorial (C) → sistema de layout -->
+- [ ] T9 — Hero (**A "A Média"**) + Tese F2 — depende de: L2 — lote: L3 — arquivos: src/sections/{hero,tese}/*
 - [ ] T10 — Referência F3 + Princípios F6 (só CSS) — depende de: L2 — lote: L3 — arquivos: src/sections/{referencia,principios}/*
 - [ ] T11 — Relevo F4 — depende de: L2 — lote: L3 — arquivos: src/sections/relevo/*, src/shaders/relight.ts
 - [ ] T12 — Catálogo F5 — depende de: L2 — lote: L3 — arquivos: src/sections/catalogo/*, src/engine/domSync.ts, src/shaders/domPlane.ts
@@ -31,3 +32,8 @@ Spec: `../prompt.md`. Lotes paralelos = arquivos disjuntos.
 
 ## L5 — validação final
 - [ ] T15 — Tester final: build + measure + e2e, orçamentos §6, lista §7, máx. 3 prints — depende de: L4
+
+## L3b — 3D (após conceito definido pelo dono)
+- [ ] T16 — Seção 3D: nuvem de pontos + depth prepass (V.1) — depende de: L2 — lote: L3b — arquivos: src/sections/campo/*, src/shaders/points.ts, scripts/build-points.ts, public/points/*
+  <!-- Adicionada em 2026-08-24 a pedido do dono: as 8 técnicas do 01 eram todas 2D; V.1 é a
+       técnica-assinatura do portfolio-3d e ficou de fora. Conceito e orçamento em aberto. -->

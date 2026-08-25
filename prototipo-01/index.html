@@ -35,6 +35,17 @@
     <canvas id="gl" aria-hidden="true"></canvas>
 
     <main>
+      <!--
+        A ordem das seções é a do argumento, e o `main.ts` monta exatamente nela:
+        a média (hero) → por que ela acontece (tese) → um caso que escapou
+        (referência) → a técnica-assinatura desse caso funcionando (campo) →
+        material (relevo) → o catálogo → os princípios → os números medidos.
+
+        Cada `<section>` traz só o esqueleto: título de rascunho para quem lê sem
+        JavaScript e o `aria-labelledby` que a seção mantém válido ao montar.
+        Exceção deliberada: F6 (princípios) vem com o markup **inteiro** inlinado
+        no build — ver `inlinePrincipios` em `vite.config.ts`.
+      -->
       <section id="hero" class="section" aria-labelledby="hero-title">
         <h1 id="hero-title" class="t-display">Forja Visual</h1>
       </section>
@@ -47,16 +58,23 @@
         <h2 id="referencia-title" class="t-title">A referência</h2>
       </section>
 
-      <section id="relevo" class="section" aria-labelledby="relevo-title">
-        <h2 id="relevo-title" class="t-title">Relevo</h2>
+      <section id="campo" class="section" aria-labelledby="campo-title">
+        <h2 id="campo-title" class="t-title">O campo</h2>
       </section>
+
+      <!--
+        Sem título de rascunho aqui: `sections/relevo/markup.ts` **acrescenta** o
+        seu conteúdo (não substitui o da seção) e cria o próprio
+        `<h2 id="relevo-title">`. Um título aqui viraria id duplicado.
+      -->
+      <section id="relevo" class="section" aria-labelledby="relevo-title"></section>
 
       <section id="catalogo" class="section" aria-labelledby="catalogo-title">
         <h2 id="catalogo-title" class="t-title">O catálogo</h2>
       </section>
 
       <section id="principios" class="section" aria-labelledby="principios-title">
-        <h2 id="principios-title" class="t-title">Princípios &amp; roadmap</h2>
+        <!--forja:principios-->
       </section>
 
       <section id="medicao" class="section" aria-labelledby="medicao-title">

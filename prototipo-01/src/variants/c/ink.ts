@@ -2,7 +2,7 @@ import { Color, GLSL3, Mesh, PlaneGeometry, RawShaderMaterial, Scene, Vector2 } 
 import { createDamped } from '@/engine';
 import { createDomSync } from '@/engine/domSync';
 import { fragment, vertex } from '@/shaders/domPlane';
-import { PAPER_GRAIN_SIZE, createPaperGrain } from './grain';
+import { PAPER_GRAIN_SIZE, createPaperGrain } from '@/sections/catalogo/grain';
 import type { Beat, DampOptions, Engine } from '@/engine';
 import type { DataTexture, IUniform, PerspectiveCamera } from 'three';
 

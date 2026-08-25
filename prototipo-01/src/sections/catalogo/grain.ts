@@ -10,6 +10,11 @@ import {
 /**
  * Grão do papel, gerado uma vez na CPU e enviado como textura.
  *
+ * Nasceu na variante C do hero e foi promovido para cá quando a técnica I.2
+ * virou a seção F5: `src/variants/` é a caixa de areia da divergência e some
+ * quando as variantes forem podadas, mas o catálogo depende deste grão em
+ * produção. O hero da variante C continua importando daqui.
+ *
  * Regra VI.5 do catálogo: padrão vira textura, não ruído por fragment. Um fbm
  * de três oitavas custa ~20 instruções por pixel **por quadro**; esta textura
  * custa uma amostra e é calculada uma vez no boot. A 128² em um canal são 16 KB

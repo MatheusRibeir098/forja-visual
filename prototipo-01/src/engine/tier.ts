@@ -22,8 +22,13 @@ export const TIER_SETTINGS: Record<Tier, TierSettings> = {
   low: {
     // dpr 1: em GPU de software cada pixel extra é CPU pura; 2x dpr = 4x custo.
     dpr: 1,
-    // 12 passos ainda resolvem a sombra do relevo; abaixo disso a borda serrilha.
-    rayMarchSamples: 12,
+    // 0 = só as normais do depth, sem sombra projetada — o que a spec §3 F4 pede
+    // para `low`. Não vira caminho de código: o `uSamples` chega no mesmo
+    // shader, que sai do laço na primeira linha (`if (uSamples <= 0)`), e o
+    // relevo continua reagindo à luz porque quem faz isso é a normal, não a
+    // marcha. Em GPU de software cada fetch do laço é CPU pura: eram 12 fetches
+    // extras por pixel para uma sombra de 29 px que ninguém compara lado a lado.
+    rayMarchSamples: 0,
     // Metade da resolução nos FBOs — o quad final reescala e o softness da
     // máscara esconde a interpolação.
     fboScale: 0.5,
@@ -32,15 +37,26 @@ export const TIER_SETTINGS: Record<Tier, TierSettings> = {
     // 1.5 é o meio-termo em telas de celular: nítido o bastante, ~2.2x menos
     // pixels que dpr 2.
     dpr: 1.5,
-    rayMarchSamples: 24,
+    // 4 passos varrem os 0.06 unidades de campo de alcance a cada 0.015 (≈11 px
+    // na chapa de 720 px do asset): a sombra mais longa, de ≈29 px, ainda recebe
+    // 2–3 amostras e a direção continua legível. É o piso que a spec §3 F4 fixa
+    // para `mid`, e o que cabe no orçamento de fetch em celular a dpr 1.5.
+    rayMarchSamples: 4,
     fboScale: 0.75,
   },
   high: {
     // Teto em 2 mesmo em telas 3x: acima de 2 o ganho visual não paga o custo
     // quadrático (é o mesmo teto que a maioria dos motores adota).
     dpr: 2,
-    // 48 passos: onde a sombra do relevo para de mudar visivelmente ao dobrar.
-    rayMarchSamples: 48,
+    // 8 passos. Medido no relevo FORJA (variante B, run de 2026-08-24): a sombra
+    // mais longa que este campo de altura consegue projetar é
+    // `profundidade / tan(elevação)` = (0.35 × 0.05) / tan(24°) ≈ 0.04 unidades
+    // de campo, ou ≈29 px sobre a chapa de 720 px. A marcha varre 0.06, então 8
+    // passos amostram a cada 0.0075 (≈5 px) — a mesma ordem da penumbra de
+    // 0.006 (≈4.3 px), que é o que impede a escada na borda. Acima disso os
+    // passos reamostram o mesmo platô e só custam fetch, e é fetch que decide o
+    // FPS a dpr 2: os 48 daqui eram 6× o custo do laço pela mesma imagem.
+    rayMarchSamples: 8,
     fboScale: 1,
   },
 };

@@ -1,0 +1,344 @@
+/*
+ * F5 — O Catálogo. Um índice impresso, não uma grade de cards.
+ *
+ * A linguagem é a que o dono aprovou na variante C: mancha editorial de 12
+ * colunas, numeração de capítulo, fio fino, coluna marginal para a nota. O que
+ * muda é o papel do WebGL — aqui ele não pinta um bloco só, pinta a linha que
+ * está sob o cursor e a linha que o scroll trouxe para o centro da tela.
+ *
+ * A ordem de camadas é redeclarada para `catalogo` ficar depois de `sections`:
+ * assim `.cat > *` vence o `.section > *` de `base.css` (mesma especificidade)
+ * por camada, e não por ordem de import — que depende de quem monta a página.
+ */
+@layer reset, base, sections, catalogo;
+
+@layer catalogo {
+  .cat {
+    /*
+     * 12 colunas: é a grade que permite a nota viver na margem (1–2) enquanto o
+     * índice ocupa da 3 em diante. Com 4 ou 6 o deslocamento vira centralização
+     * disfarçada — foi a conclusão da variante C e continua valendo.
+     */
+    --cat-grid: repeat(12, minmax(0, 1fr));
+    --cat-gap: clamp(0.75rem, 1.6vw, 1.75rem);
+
+    /*
+     * `--cat-paper` é o que o WebGL usa para limpar a faixa da seção: precisa
+     * ser exatamente o fundo da página, ou apareceria um retângulo de outra cor
+     * atrás do índice. Vem de `--bg` para nunca divergir do tema.
+     */
+    --cat-paper: var(--bg);
+    /*
+     * `--cat-ink` é a cor para onde a tinta puxa. No claro é mais escura que o
+     * papel; no escuro é mais clara. Nos dois casos o movimento afasta o fundo
+     * do texto, então o efeito só pode *aumentar* contraste.
+     */
+    --cat-ink: #1a1917;
+    /* Texto secundário: 10,4:1 sobre o papel, 9,3:1 com a tinta cheia (≥ 7:1). */
+    --cat-soft: #3a3a38;
+    --cat-rule: #d2d0cc;
+
+    display: grid;
+    row-gap: clamp(1.25rem, 3vh, 2.5rem);
+    max-inline-size: var(--content-max);
+    margin-inline: auto;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .cat {
+      --cat-ink: #33322f;
+      /* 11,1:1 sobre o fundo escuro, 10,5:1 com a tinta cheia. */
+      --cat-soft: #c9c7c2;
+      --cat-rule: #333230;
+    }
+  }
+
+  /* Neutraliza `.section > *`: aqui a largura é da grade, não de cada filho. */
+  .cat > * {
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  .cat__rule {
+    border: 0;
+    border-top: 1px solid var(--cat-rule);
+    margin: 0;
+  }
+
+  /* --- cabeçalho corrido ------------------------------------------------ */
+
+  .cat__masthead,
+  .cat__head {
+    display: grid;
+    grid-template-columns: var(--cat-grid);
+    column-gap: var(--cat-gap);
+  }
+
+  .cat__masthead {
+    align-items: baseline;
+    padding-bottom: 0.5rem;
+  }
+
+  .cat__mark {
+    grid-column: 1 / 6;
+  }
+
+  .cat__folio {
+    grid-column: 9 / -1;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cat__head {
+    align-items: start;
+    row-gap: clamp(1rem, 2.5vh, 1.75rem);
+    padding-block: clamp(1rem, 3vh, 2rem);
+  }
+
+  .cat__title {
+    grid-column: 3 / -1;
+    grid-row: 1;
+    /* Alinhamento óptico: a haste do O entra ~0.02em depois da caixa. */
+    margin-inline-start: -0.02em;
+  }
+
+  .cat__lead {
+    grid-column: 3 / 10;
+    grid-row: 2;
+    font-size: var(--step-1);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .cat__note {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    border-top: 1px solid var(--cat-rule);
+    padding-top: 0.65rem;
+  }
+
+  .cat__note-text {
+    margin-top: 0.5rem;
+    font-size: var(--step--1);
+    line-height: 1.45;
+    color: var(--cat-soft);
+    text-wrap: pretty;
+  }
+
+  /* --- índice ------------------------------------------------------------ */
+
+  .cat__legend,
+  .cat__entry {
+    display: grid;
+    grid-template-columns: var(--cat-grid);
+    column-gap: var(--cat-gap);
+  }
+
+  .cat__legend {
+    align-items: baseline;
+    padding-bottom: 0.4rem;
+    font-size: var(--step--1);
+    font-weight: 600;
+    /* 0.14em: caixa alta em corpo pequeno fecha demais sem tracking largo. */
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cat-soft);
+  }
+
+  .cat__legend-id {
+    grid-column: 1 / 2;
+  }
+
+  .cat__legend-name {
+    grid-column: 2 / 6;
+  }
+
+  .cat__legend-problem {
+    grid-column: 6 / 12;
+  }
+
+  .cat__legend-rating {
+    grid-column: 12 / -1;
+    text-align: right;
+  }
+
+  .cat__group {
+    margin-block-start: var(--space-l);
+  }
+
+  .cat__layer {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-s);
+    border-bottom: 1px solid var(--cat-rule);
+    padding-bottom: 0.4rem;
+    color: var(--cat-soft);
+  }
+
+  .cat__layer-count {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cat__rows {
+    list-style: none;
+    padding: 0;
+  }
+
+  .cat__entry {
+    align-items: baseline;
+    border-top: 1px solid var(--cat-rule);
+    /*
+     * 0.85rem em cima e embaixo dá uma linha de ~72–96 px. É o intervalo em que
+     * o bleed do cursor (raio = 2,2 × a altura) vaza uma linha para cada lado —
+     * mais apertado e a mancha cobre quatro linhas, mais folgado e ela não sai
+     * da própria.
+     */
+    padding-block: 0.85rem;
+  }
+
+  /* O fio da camada já separa: um segundo fio colado nele vira borda dupla. */
+  .cat__item:first-child .cat__entry {
+    border-top: 0;
+  }
+
+  .cat__id {
+    grid-column: 1 / 2;
+    color: var(--cat-soft);
+  }
+
+  .cat__name {
+    grid-column: 2 / 6;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .cat__problem {
+    grid-column: 6 / 12;
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--cat-soft);
+    text-wrap: pretty;
+  }
+
+  .cat__rating {
+    grid-column: 12 / -1;
+    text-align: right;
+  }
+
+  .cat__glyphs {
+    /* Tabular para as três posições ocuparem a mesma largura em toda linha. */
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.12em;
+    color: var(--fg);
+  }
+
+  /*
+   * Realce em CSS, independente do WebGL: sem contexto GL (ou com o canvas
+   * ainda em branco) a linha sob o cursor continua respondendo.
+   */
+  .cat__item:hover .cat__id {
+    color: var(--fg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cat__id {
+      transition: color var(--dur-fast) var(--ease-out);
+    }
+  }
+
+  .cat__footnote {
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--cat-soft);
+    max-inline-size: 68ch;
+    text-wrap: pretty;
+  }
+
+  /*
+   * Só para leitor de tela. `display: none` sumiria da árvore de acessibilidade
+   * junto com o resto; o recorte de 1 px é o que mantém o texto exposto.
+   */
+  .cat__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /*
+   * Abaixo de 56rem a grade de 12 não tem largura para deslocar nada: colunas
+   * de ~24 px viram ruído. A hierarquia passa a ser vertical, e a legenda das
+   * colunas some porque não há mais colunas a legendar.
+   */
+  @media (max-width: 56rem) {
+    .cat {
+      --cat-grid: repeat(6, minmax(0, 1fr));
+    }
+
+    .cat__mark {
+      grid-column: 1 / 4;
+    }
+
+    .cat__folio {
+      grid-column: 4 / -1;
+    }
+
+    .cat__title,
+    .cat__lead,
+    .cat__note {
+      grid-column: 1 / -1;
+    }
+
+    .cat__title {
+      grid-row: 1;
+    }
+
+    .cat__lead {
+      grid-row: 2;
+    }
+
+    .cat__note {
+      grid-row: 3;
+    }
+
+    .cat__legend {
+      display: none;
+    }
+
+    .cat__entry {
+      /* A referência mede o mesmo em toda linha; o resto ocupa o que sobra. */
+      grid-template-columns: max-content 1fr;
+      row-gap: 0.3rem;
+    }
+
+    .cat__id {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .cat__rating {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .cat__name {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .cat__problem {
+      grid-column: 1 / -1;
+      grid-row: 3;
+    }
+  }
+}

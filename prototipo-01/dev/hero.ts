@@ -2,12 +2,13 @@ import '@/styles/tokens.css';
 import '@/styles/base.css';
 import '@/styles/typography.css';
 import { createEngine } from '@/engine';
-import { mountHero } from '@/variants/a';
+import { mountSection as mountHero } from '@/sections/hero';
 import type { GL } from '@/engine';
 
 /**
- * Página interna para olhar a variante A (não entra no build: só `index.html`
- * é input do Vite).
+ * Página interna para olhar o hero sozinho (não entra no build: só `index.html`
+ * é input do Vite). A F1 com a F2 embaixo, que é o cenário real da troca de
+ * tela entre as duas, está em `/dev/tese.html`.
  *
  *   ?stats=1     mostra fps/tier/viewport no canto
  *   ?contrast=1  mede o pixel mais claro atrás do texto e reporta o contraste
@@ -15,7 +16,7 @@ import type { GL } from '@/engine';
 
 const STATS_EVERY_N_FRAMES = 15; // ~4 atualizações/s: legível sem thrash de layout
 
-/** Cor do texto do hero, em sRGB — a mesma de `variants/a/style.css`. */
+/** Cor do texto do hero, em sRGB — a mesma de `sections/hero/style.css`. */
 const TEXT_SRGB: readonly [number, number, number] = [0xf4, 0xf2, 0xee];
 
 /** Piso do critério de aceite da variante. */
@@ -23,7 +24,7 @@ const MIN_CONTRAST = 7;
 
 declare global {
   interface Window {
-    __forjaVariantAContrast?: { ratio: number; brightest: string; samples: number };
+    __forjaHeroContrast?: { ratio: number; brightest: string; samples: number };
   }
 }
 
@@ -85,7 +86,7 @@ function measureWorstContrast(gl: GL, rect: DOMRect): void {
   }
 
   const result = { ratio: worst, brightest, samples: width * height };
-  window.__forjaVariantAContrast = result;
+  window.__forjaHeroContrast = result;
   const line = `contraste mínimo ${worst.toFixed(2)}:1 (pior pixel ${brightest}, ${result.samples} px)`;
   if (worst >= MIN_CONTRAST) console.info(`forja/dev: PASSOU — ${line}`);
   else console.error(`forja/dev: FALHOU — ${line} (mínimo ${MIN_CONTRAST}:1)`);
@@ -113,13 +114,12 @@ function boot(): void {
   let contrastDone = false;
 
   // Inscrito **depois** de `mountHero`: o ticker roda os callbacks na ordem de
-  // inscrição, então o render vê o progresso já atualizado neste quadro.
+  // inscrição, então esta leitura vê o quadro que a seção acabou de desenhar.
+  // Quem chama `composite.render()` é a própria seção.
   engine.ticker.subscribe(() => {
-    engine.composite.render();
-
     if (wantsContrast && !contrastDone && engine.composite.progress >= 1) {
       contrastDone = true;
-      const block = hero.querySelector('.va-block');
+      const block = hero.querySelector('.hero-block');
       if (block !== null) measureWorstContrast(engine.gl, block.getBoundingClientRect());
     }
 

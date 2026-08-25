@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" />
+    <title>Forja Visual — F1 + F2 (dev)</title>
+    <style>
+      /* Só da página de dev: a chapa da cena, para não piscar claro no boot. */
+      body {
+        background: #08080a;
+      }
+
+      /*
+       * Faz as vezes da F3 enquanto ela não existe: a seção seguinte é opaca,
+       * que é o que impede o último quadro do canvas de aparecer atrás dela.
+       */
+      #depois {
+        min-height: 120dvh;
+        background: var(--bg);
+        color: var(--fg);
+      }
+
+      #stats {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 10;
+        margin: 0;
+        padding: 0.75rem 1rem;
+        border: 1px solid #2a2b2f;
+        border-radius: 0.5rem;
+        background: #0b0b0cf2;
+        color: #b9b6b0;
+        font-family: ui-monospace, 'SFMono-Regular', 'Liberation Mono', monospace;
+        font-size: 0.75rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <main>
+      <section id="hero" class="section" aria-labelledby="hero-title">
+        <h1 id="hero-title" class="t-display">Forja Visual</h1>
+      </section>
+
+      <section id="tese" class="section" aria-labelledby="tese-title">
+        <h2 id="tese-title" class="t-title">A tese</h2>
+      </section>
+
+      <section id="depois" class="section">
+        <h2 class="t-title">F3 (placeholder)</h2>
+      </section>
+    </main>
+    <pre id="stats" hidden>iniciando…</pre>
+    <script type="module" src="/dev/tese.ts"></script>
+  </body>
+</html>

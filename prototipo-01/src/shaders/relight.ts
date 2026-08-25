@@ -1,6 +1,7 @@
+import { Color, Vector2 } from 'three';
 import { POINTER_RAY_GLSL } from '@/engine/pointer';
 import { LINEAR_TO_SRGB } from '@/shaders/glsl';
-import type { Color, Texture, Vector2 } from 'three';
+import type { Texture } from 'three';
 
 /**
  * IV.1 — **Relighting por depth map**.
@@ -16,15 +17,21 @@ import type { Color, Texture, Vector2 } from 'three';
  *    escurecer.
  * 3. **Sombra por ray march** — de cada pixel, caminha em direção à luz
  *    comparando a altura amostrada com a elevação do próprio raio. `uSamples`
- *    vem do tier; em 0 o shader continua rodando, só sem a sombra projetada
- *    (regra do projeto: tier muda número, nunca caminho de código).
+ *    vem cru do tier (8/4/0 em `engine/tier.ts`, com a medição registrada lá);
+ *    em 0 o shader continua rodando, só sem a sombra projetada (regra do
+ *    projeto: tier muda número, nunca caminho de código). **Quem monta a cena
+ *    não deve limitar esse número por conta própria** — se 8 passos não bastam
+ *    para um asset novo, o lugar de mudar é o tier, senão a decisão passa a
+ *    existir em dois lugares que discordam em silêncio.
  *
  * A luz é um ponto **acima da chapa**, posicionado onde o raio do cursor (V.4)
  * cruza o plano. Cor quente na luz, ambiente frio e baixo: a chapa é carvão e
  * só a brasa tem cor.
  *
- * O módulo é genérico de propósito — a seção "Relevo" reusa o mesmo par de
- * shaders com outro asset, outro plano e outra luz.
+ * O módulo é genérico de propósito, e já é usado por dois donos diferentes: o
+ * hero da variante B (chapa em tela cheia) e a seção "Relevo" (F4), onde a
+ * mesma chapa vira um espécime que viaja em profundidade. Nada aqui sabe do
+ * enquadramento: quem monta a cena decide plano, câmera e recorte de uv.
  *
  * ── ESPAÇOS DE COORDENADA ──────────────────────────────────────────────────
  * - **uv**: [0,1]² sobre a textura de relevo.
@@ -86,7 +93,10 @@ export type RelightUniforms = {
   uFalloffCurve: { value: number };
   uSpecularStrength: { value: number };
   uShininess: { value: number };
-  /** Passos do ray march. 0 desliga a sombra projetada, mantendo as normais. */
+  /**
+   * Passos do ray march, direto de `gl.settings.rayMarchSamples`. 0 desliga a
+   * sombra projetada mantendo as normais — que é o tier `low`, não um fallback.
+   */
   uSamples: { value: number };
   /** Alcance da marcha, em unidades de campo. */
   uMarchDistance: { value: number };
@@ -232,6 +242,56 @@ export const DEFAULT_SHADOW_SOFTNESS = 0.006;
  * corte.
  */
 export const DEFAULT_SHADOW_STRENGTH = 0.85;
+
+// ---------------------------------------------------------------------------
+// Fábrica de uniforms
+// ---------------------------------------------------------------------------
+
+/**
+ * Uniforms já preenchidos com os defaults acima.
+ *
+ * Existe para que quem monta a cena não precise repetir a lista inteira: o
+ * `RawShaderMaterial` do three não reclama de uniform faltando — ele manda 0
+ * para o shader e o efeito quebra em silêncio (um `uFieldPerWorld` esquecido
+ * apaga a luz sem erro nenhum no console).
+ *
+ * As texturas e o que depende do enquadramento (`uTexel`, `uUvScale`,
+ * `uFieldAspect`, `uFieldPerWorld`) ficam neutros: só quem carregou o asset e
+ * mediu a viewport sabe esses números.
+ *
+ * `uLightIntensity` nasce em 0 de propósito — a brasa acende quando as texturas
+ * chegam, e "a chapa aparecer pronta num quadro" lê pior do que o acendimento.
+ */
+export function createRelightUniforms(): RelightUniforms {
+  return {
+    uDepth: { value: null },
+    uAlbedo: { value: null },
+    uGrain: { value: null },
+    uTexel: { value: new Vector2(1, 1) },
+    uUvScale: { value: new Vector2(1, 1) },
+    uUvOffset: { value: new Vector2(0, 0) },
+    uFieldAspect: { value: 1 },
+    uGrainTiles: { value: DEFAULT_GRAIN_TILES },
+    uGrainAmplitude: { value: DEFAULT_GRAIN_AMPLITUDE },
+    uHeightScale: { value: DEFAULT_HEIGHT_SCALE },
+    uPlateHeight: { value: DEFAULT_PLATE_HEIGHT },
+    uAlbedoGain: { value: DEFAULT_ALBEDO_GAIN },
+    uPointerRay: { value: new Vector2(0, 0) },
+    uFieldPerWorld: { value: 1 },
+    uLightHeight: { value: DEFAULT_LIGHT_HEIGHT },
+    uLightColor: { value: new Color(LIGHT_COLOR_HEX) },
+    uAmbientColor: { value: new Color(AMBIENT_COLOR_HEX).multiplyScalar(AMBIENT_LEVEL) },
+    uLightIntensity: { value: 0 },
+    uLightRadius: { value: DEFAULT_LIGHT_RADIUS },
+    uFalloffCurve: { value: DEFAULT_FALLOFF_CURVE },
+    uSpecularStrength: { value: DEFAULT_SPECULAR_STRENGTH },
+    uShininess: { value: DEFAULT_SHININESS },
+    uSamples: { value: 0 },
+    uMarchDistance: { value: DEFAULT_MARCH_DISTANCE },
+    uShadowSoftness: { value: DEFAULT_SHADOW_SOFTNESS },
+    uShadowStrength: { value: DEFAULT_SHADOW_STRENGTH },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // GLSL

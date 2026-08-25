@@ -1,0 +1,275 @@
+/*
+ * F3 — A referência.
+ *
+ * Ledger editorial: uma trilha fixa (o indicador) ao lado de cinco blocos de
+ * texto. A trilha é vertical no desktop e vira uma régua horizontal grudada no
+ * topo no mobile — mesma marcação, mesmo eixo lógico, dois enquadramentos.
+ *
+ * O JS escreve exatamente quatro números aqui: `--rf-needle` e `--rf-target` na
+ * trilha, `--rf-p` em cada bloco. Todo o resto é layout.
+ */
+
+/*
+ * Registrados para o `calc()` resolver como número (e não como token textual) e
+ * para as posições interpolarem sem salto. `--rf-needle` e `--rf-target` são
+ * escritos na trilha e lidos pelos filhos, por isso herdam; `--rf-at` é a
+ * posição final de cada peça e é sempre local.
+ */
+@property --rf-needle {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --rf-target {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --rf-at {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --rf-p {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@layer sections {
+  .rf-root {
+    display: grid;
+    gap: var(--space-xl);
+  }
+
+  /* --- cabeçalho ------------------------------------------------------- */
+
+  .rf-head {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .rf-kicker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    color: var(--muted);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  /* O fio entre a numeração e o rótulo é desenho: nasce no CSS, não no texto. */
+  .rf-kicker-label::before {
+    content: '';
+    display: inline-block;
+    inline-size: clamp(1.5rem, 6vw, 3rem);
+    block-size: 1px;
+    margin-inline-end: var(--space-xs);
+    background: var(--rule);
+    vertical-align: middle;
+  }
+
+  .rf-title {
+    max-inline-size: 18ch;
+  }
+
+  /* --- corpo ----------------------------------------------------------- */
+
+  .rf-body {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  /*
+   * Mobile: régua horizontal grudada no topo da janela enquanto a seção passa.
+   * Fundo sólido porque o texto corre por baixo dela — translucidez aqui
+   * rebaixaria o contraste medido por pixel do que ficasse atrás.
+   */
+  .rf-aside {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    padding-block: var(--space-2xs) var(--space-xs);
+    background: var(--bg);
+  }
+
+  .rf-rail {
+    /* Linha em 0.5rem + números logo abaixo: 2rem é o que os dois ocupam. */
+    position: relative;
+    block-size: 2rem;
+    inline-size: 100%;
+  }
+
+  .rf-rail::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 0.5rem;
+    inset-inline: 0;
+    block-size: 1px;
+    background: var(--rule);
+  }
+
+  .rf-rail > * {
+    position: absolute;
+    inset-block-start: 0.5rem;
+    inset-inline-start: calc(var(--rf-at) * 100%);
+    translate: -50% -50%;
+  }
+
+  .rf-mark {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--muted);
+    /* Meio caractere para a esquerda, um respiro abaixo do fio. */
+    translate: -50% 0.5rem;
+  }
+
+  /* A agulha amortecida: o disco cheio. */
+  .rf-needle {
+    --rf-at: var(--rf-needle);
+
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    border-radius: 50%;
+    background: var(--fg);
+  }
+
+  /*
+   * O alvo: anel vazado onde o scroll *já* está. A distância entre ele e a
+   * agulha é o damping assimétrico ficando visível — sem este anel a técnica
+   * seria indistinguível de uma barra de progresso comum.
+   */
+  .rf-ghost {
+    --rf-at: var(--rf-target);
+
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+  }
+
+  /* --- blocos ---------------------------------------------------------- */
+
+  .rf-list {
+    display: grid;
+    gap: var(--space-xl);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rf-block {
+    display: grid;
+    gap: var(--space-2xs);
+  }
+
+  .rf-ordinal {
+    font-family: var(--font-display);
+    font-size: var(--step-3);
+    line-height: 1;
+    color: var(--muted);
+    transition: color var(--dur-base) var(--ease-out);
+  }
+
+  .rf-block[data-active='true'] .rf-ordinal {
+    color: var(--fg);
+  }
+
+  /*
+   * O fio de cada bloco cresce com o beat do próprio bloco — é a coreografia de
+   * entrada ancorada no elemento (V.2). O texto não se mexe nem muda de opacidade:
+   * quem entra na tela é a régua, não a leitura.
+   */
+  .rf-rule {
+    block-size: 1px;
+    margin-block: var(--space-2xs);
+    background: var(--rule);
+    transform: scaleX(var(--rf-p));
+    transform-origin: left center;
+  }
+
+  .rf-why {
+    margin: 0;
+  }
+
+  /* --- desktop: a trilha levanta e vira coluna ------------------------- */
+
+  @media (min-width: 60rem) {
+    .rf-body {
+      grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr);
+      gap: var(--space-xl);
+      align-items: start;
+    }
+
+    /*
+     * 22vh de topo com 56vh de trilha deixa a régua ocupando a faixa central da
+     * janela: o marcador ativo cai perto da linha em que o olho está lendo.
+     */
+    .rf-aside {
+      inset-block-start: 22vh;
+      padding: 0;
+      background: none;
+    }
+
+    .rf-rail {
+      block-size: 56vh;
+      inline-size: auto;
+    }
+
+    .rf-rail::before {
+      inset-block: 0;
+      inset-inline: 0 auto;
+      inline-size: 1px;
+      block-size: auto;
+    }
+
+    .rf-rail > * {
+      inset-block-start: calc(var(--rf-at) * 100%);
+      inset-inline-start: 0;
+      translate: -50% -50%;
+    }
+
+    .rf-mark {
+      translate: 0.75rem -50%;
+    }
+
+    .rf-block {
+      grid-template-columns: 3.5rem minmax(0, 1fr);
+      column-gap: var(--space-m);
+      row-gap: var(--space-3xs);
+    }
+
+    .rf-ordinal {
+      grid-column: 1;
+      grid-row: 1;
+      font-size: var(--step-4);
+      text-align: end;
+    }
+
+    .rf-block-title {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .rf-rule {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .rf-why {
+      grid-column: 2;
+      grid-row: 3;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rf-ordinal {
+      transition: none;
+    }
+  }
+}

@@ -133,6 +133,22 @@
     margin-inline: auto;
   }
 
+  /*
+   * Quem não desenha é opaco.
+   *
+   * O canvas é criado sem alpha (`engine/gl.ts`) e ninguém dá clear global (a
+   * regra está escrita em `main.ts`): fora do recorte de quem desenhou, o que
+   * fica na tela é preto, não o fundo do documento. Estas três seções não têm
+   * WebGL nenhum, então são elas — e não o renderer — o fundo do próprio
+   * pedaço. As outras cinco ficam transparentes de propósito: é por elas que a
+   * cena aparece.
+   */
+  #referencia,
+  #principios,
+  #medicao {
+    background: var(--bg);
+  }
+
   /* Only the hero and the relief own a full viewport (spec §5). */
   #hero,
   #relevo {

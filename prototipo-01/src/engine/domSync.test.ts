@@ -1,6 +1,13 @@
 import { Mesh } from 'three';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CAMERA_DISTANCE_PX, createDomSync, domRectToWorld, fovForHeight } from '@/engine/domSync';
+import {
+  CAMERA_DISTANCE_PX,
+  createDomSync,
+  domRectToWorld,
+  fovForHeight,
+  projectMeshToScreen,
+  screenRectDelta,
+} from '@/engine/domSync';
 import type { DomSync, DomSyncHost } from '@/engine/domSync';
 import type { GLSize, ResizeListener } from '@/engine/gl';
 
@@ -191,5 +198,69 @@ describe('createDomSync', () => {
     sync.track(tracked.el, mesh);
     sync.update();
     expect(mesh.visible).toBe(false);
+  });
+
+  it('devolve em rectOf o retângulo já lido, sem uma segunda medição', () => {
+    const host = createTestHost();
+    sync = createDomSync(host);
+    const tracked = createTrackedElement(rectOf(120, 60, 640, 180));
+    sync.track(tracked.el, new Mesh());
+
+    tracked.resetReads();
+    sync.update();
+    expect(sync.rectOf(tracked.el)).toMatchObject({
+      left: 120,
+      top: 60,
+      width: 640,
+      height: 180,
+    });
+    // A consulta é do quadro corrente: ela não pode custar layout nenhum.
+    expect(tracked.reads).toBe(1);
+    expect(sync.rectOf(document.createElement('div'))).toBeNull();
+  });
+
+  it('projeta o mesh de volta para o próprio rect do DOM — o aceite da técnica', () => {
+    const host = createTestHost();
+    sync = createDomSync(host);
+    const dom = rectOf(137, 421.5, 640.25, 180.75);
+    const tracked = createTrackedElement(dom);
+    const mesh = new Mesh();
+    sync.track(tracked.el, mesh);
+    sync.update();
+    sync.camera.updateMatrixWorld();
+
+    const projected = projectMeshToScreen(mesh, sync.camera, {
+      width: VIEWPORT_WIDTH,
+      height: VIEWPORT_HEIGHT,
+    });
+    expect(screenRectDelta(dom, projected)).toBeLessThan(EPSILON_PX);
+  });
+
+  it('mantém a projeção colada ao texto durante uma varredura de scroll', () => {
+    const host = createTestHost();
+    sync = createDomSync(host);
+    const tracked = createTrackedElement(rectOf(40, 900, 812, 96));
+    const mesh = new Mesh();
+    sync.track(tracked.el, mesh);
+    const viewport = { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT };
+
+    // 137 px por quadro: passo primo, não múltiplo de nenhuma altura de linha,
+    // e da ordem do pior caso real (flick de trackpad anda ~150 px/quadro).
+    let worst = 0;
+    for (let frame = 0; frame < 24; frame += 1) {
+      const top = 900 - frame * 137;
+      tracked.setRect(rectOf(40, top, 812, 96));
+      sync.update();
+      sync.camera.updateMatrixWorld();
+      if (!mesh.visible) continue;
+      worst = Math.max(
+        worst,
+        screenRectDelta(
+          rectOf(40, top, 812, 96),
+          projectMeshToScreen(mesh, sync.camera, viewport),
+        ),
+      );
+    }
+    expect(worst).toBeLessThan(EPSILON_PX);
   });
 });

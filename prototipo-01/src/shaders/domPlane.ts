@@ -19,9 +19,13 @@ import { POINTER_RAY_GLSL } from '@/engine/pointer';
  * O plano é **opaco**: em vez de blendar alpha, ele mistura papel→tinta e
  * escreve a cor final. O `clearColor` do renderer é o mesmo papel, então a
  * junção é invisível — e o texto continua sendo HTML por cima, com seleção,
- * foco e leitor de tela intactos. Como a mistura só anda na direção da tinta,
- * o efeito **escurece** o fundo: nunca clareia o texto, nunca derruba contraste
- * abaixo do que o par papel/tinta já garante.
+ * foco e leitor de tela intactos.
+ *
+ * A mistura só anda numa direção: do papel para `uInk`. Quem escolhe `uInk`
+ * decide, com isso, o que acontece com o contraste — e a regra do projeto é
+ * escolher uma tinta que **afaste** o fundo do texto (mais escura que o papel
+ * numa página clara, mais clara numa página escura). `uInkMax` é o teto que
+ * transforma essa escolha num número verificável.
  */
 
 /**
@@ -62,6 +66,14 @@ const GRAIN_ASPECT = 1;
  */
 const WIDE_GRAIN_SCALE = 0.22;
 
+/**
+ * Deslocamento da segunda amostra larga, em repetições do grão. 0.37 não é
+ * múltiplo de nenhuma das oitavas da textura (6/17/43), então o par (x, y) do
+ * domain warp sai descorrelacionado — com offset harmônico as duas amostras
+ * andam juntas e o warp vira translação, não distorção.
+ */
+const WARP_OFFSET = 0.37;
+
 export const vertex: string = /* glsl */ `
 precision highp float;
 
@@ -101,6 +113,12 @@ void main() {
  * - `uSoak`          0–1, absorção acumulada pelo scroll
  * - `uRest`          tinta de repouso (quase invisível, > 0 só para o papel viver)
  * - `uInkMax`        teto de tinta — o guarda que protege o contraste do texto
+ * - `uWarpPx`        amplitude do domain warp sob o cursor, em px (opcional)
+ *
+ * `uWarpPx` é o único opcional: um uniform declarado no shader e ausente do
+ * material fica no default do GL, que é 0 — e 0 é exatamente "sem warp", o
+ * comportamento de quem só quer a tinta (o hero da variante C). Quem quer a
+ * distorção (o catálogo, F5) passa o valor.
  */
 export const fragment: string = /* glsl */ `
 precision highp float;
@@ -122,6 +140,7 @@ uniform float uMisregPx;
 uniform float uSoak;
 uniform float uRest;
 uniform float uInkMax;
+uniform float uWarpPx;
 
 ${COVER_UV}
 ${LINEAR_TO_SRGB}
@@ -139,7 +158,18 @@ void main() {
   vec2 grainUv = (coverUv(vUv, ${GRAIN_ASPECT.toFixed(1)}, planeAspect) - 0.5) * uGrainScale;
   vec2 misreg = vec2(uMisregPx / max(uPlanePx.x, 1.0), 0.0) * uGrainScale;
 
+  // coverUv deixa o grão isotrópico, então 1 px vale o mesmo nos dois eixos:
+  // o fator é sempre em relação ao lado maior do plano.
+  float grainPerPx = uGrainScale / max(max(uPlanePx.x, uPlanePx.y), 1.0);
+
   float wide = texture(uGrain, grainUv * ${WIDE_GRAIN_SCALE.toFixed(2)}).r;
+
+  // Domain warp: a segunda amostra larga (eixos trocados e deslocada) empurra a
+  // amostragem da fibra. É o que faz a superfície *distorcer* sob o cursor em
+  // vez de só escurecer — a fibra escorre, como papel molhado que incha.
+  float wideWarp =
+    texture(uGrain, grainUv.yx * ${WIDE_GRAIN_SCALE.toFixed(2)} + ${WARP_OFFSET.toFixed(2)}).r;
+  grainUv += (vec2(wide, wideWarp) - 0.5) * uWarpPx * grainPerPx * uPointer;
 
   // Borda fibrosa: o grão largo empurra o raio do bleed para dentro e para fora.
   float dist = length(vPointer) + (wide - 0.5) * uFiberPx;

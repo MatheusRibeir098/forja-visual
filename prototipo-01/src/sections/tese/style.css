@@ -1,0 +1,190 @@
+/*
+ * F2 — A Tese. Coluna de leitura sobre a cena WebGL que desaba para a média.
+ *
+ * A ordem de camadas é declarada em `base.css` (`reset, base, sections`); só
+ * entramos em `sections`, a última, para vencer o layout padrão de `.section`
+ * por camada e não por especificidade inflada.
+ */
+
+/*
+ * `--tese-progress` é escrito por JS a cada quadro. Registrar o tipo evita que
+ * o `transform` seja reparseado como token textual a cada escrita.
+ */
+@property --tese-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@layer sections {
+  .tese-root {
+    /*
+     * Cores fixas, fora dos tokens: o fundo desta seção é sempre a chapa quase
+     * preta do WebGL, em qualquer `prefers-color-scheme`. Herdar `--fg` deixaria
+     * o texto preto sobre preto no tema claro.
+     * `--tese-plate` é o PLATE do backdrop da cena (#08080a) um passo mais
+     * claro: as chapas de texto leem como o mesmo material da cena, e não como
+     * um card colado por cima.
+     */
+    --tese-plate: #0a0a0d;
+    --tese-ink: #f4f2ee;
+    /* 9,9:1 sobre a chapa — acima do piso de 7:1 da spec §6. */
+    --tese-ink-muted: #b4bac2;
+    --tese-rule: #2a2b2f;
+
+    /*
+     * O vão do beat é `altura − 100dvh`. Com 200dvh, o mínimo garantido é uma
+     * viewport inteira de scroll (~7 cliques de roda, a 100 px por clique, que
+     * é o delta padrão do Chrome): tempo suficiente para a máscara ser lida
+     * como comandada pelo dedo. O conteúdo normalmente passa disso e o vão
+     * cresce junto — nada aqui depende de uma altura cravada.
+     */
+    min-height: 200dvh;
+    display: grid;
+    align-content: start;
+    row-gap: var(--space-xl);
+    color: var(--tese-ink);
+  }
+
+  /* `.section > *` centraliza e limita a largura; aqui quem manda é o grid. */
+  .tese-root > * {
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  /* O anel de foco padrão usa `--fg`, que é escuro no tema claro. */
+  .tese-root :focus-visible {
+    outline-color: var(--tese-ink);
+  }
+
+  .tese-rail {
+    display: grid;
+    gap: var(--space-s);
+    align-self: start;
+    position: sticky;
+    /* Encostado abaixo da borda superior: a régua fica no campo de visão a
+       seção inteira, que é justamente quando ela mede alguma coisa. */
+    top: var(--space-l);
+  }
+
+  .tese-mark {
+    color: var(--tese-ink-muted);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  /* Régua do progresso: a mesma informação da máscara, medida e visível (P7). */
+  .tese-meter {
+    position: relative;
+    width: 1px;
+    height: min(40vh, 18rem);
+    background: var(--tese-rule);
+  }
+
+  .tese-meter-fill {
+    position: absolute;
+    inset: 0;
+    /* STEEL → EMBER: as duas cores da própria cena (`shaders/variantAField`). */
+    background: linear-gradient(to bottom, #8f98a6, #ff7a2a);
+    transform: scaleY(var(--tese-progress, 0));
+    transform-origin: top center;
+  }
+
+  .tese-column {
+    display: grid;
+    /*
+     * O vão entre as chapas é onde a cena aparece no celular, onde a coluna
+     * ocupa quase toda a largura. Por isso ele é generoso e cresce com a tela.
+     */
+    gap: clamp(1.5rem, 0.9rem + 2.6vw, 3.5rem);
+    justify-items: start;
+  }
+
+  .tese-plate {
+    /*
+     * Chapa **opaca**, nunca translúcida: o contraste do texto precisa ser o
+     * mesmo com a máscara em 0, em 0,5 e em 1 — e é medido por pixel (spec §6).
+     */
+    background: var(--tese-plate);
+    padding: var(--space-m);
+    max-width: 100%;
+  }
+
+  .tese-title {
+    max-width: 20ch;
+    text-wrap: balance;
+  }
+
+  .tese-quote {
+    display: grid;
+    gap: var(--space-s);
+    margin: 0;
+    /* Um fio na borda de leitura: a citação é de fora, e mostra isso. */
+    border-inline-start: 2px solid #ff7a2a;
+    padding-inline-start: calc(var(--space-m) - 2px);
+  }
+
+  .tese-quote blockquote {
+    margin: 0;
+  }
+
+  .tese-quote blockquote p::before {
+    content: '“';
+  }
+
+  .tese-quote blockquote p::after {
+    content: '”';
+  }
+
+  .tese-cite {
+    color: var(--tese-ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+  }
+
+  .tese-cite a {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.35em;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .tese-cite a:hover {
+    color: var(--tese-ink);
+  }
+
+  .tese-corollary {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .tese-corollary h3 {
+    color: var(--tese-ink);
+  }
+
+  /*
+   * A partir de 60rem a coluna sai do centro: régua estreita à esquerda, texto
+   * numa medida de leitura, e o resto da largura livre para a cena — é onde a
+   * caricatura da média se monta enquanto o visitante lê por que ela existe.
+   */
+  @media (min-width: 60rem) {
+    .tese-root {
+      grid-template-columns: minmax(0, 9rem) minmax(0, 32rem) minmax(0, 1fr);
+      column-gap: var(--space-xl);
+      row-gap: 0;
+    }
+
+    .tese-rail {
+      grid-column: 1;
+    }
+
+    .tese-column {
+      grid-column: 2;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tese-cite a {
+      transition: none;
+    }
+  }
+}

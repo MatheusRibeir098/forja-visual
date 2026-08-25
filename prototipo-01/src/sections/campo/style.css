@@ -1,0 +1,186 @@
+/*
+ * Seção "Campo" — o crânio em nuvem de pontos (técnica V.1).
+ *
+ * Duas superfícies e nenhuma terceira: a **faixa de carvão** onde o WebGL
+ * desenha, e a **coluna de chapa** onde o texto vive. A coluna desliza por cima
+ * da faixa conforme a página rola, e é essa passagem que dá à seção o seu
+ * único gesto de layout — nada aparece por fade, nada cresce, nada gira em CSS.
+ *
+ * A ordem de camadas é redeclarada para `campo` ficar depois de `sections`:
+ * assim as regras abaixo vencem `.section` de `base.css` sem entrar numa guerra
+ * de especificidade com seletores de id.
+ */
+@layer reset, base, sections, campo;
+
+@layer campo {
+  .campo {
+    /* Mesmo carvão que o renderer usa como cor de limpeza do recorte. Os dois
+       precisam bater: divergindo, a costura entre o canvas e a chapa vira uma
+       linha visível na borda do scissor. Ver CLEAR_COLOR_HEX em index.ts. */
+    --campo-void: #08080b;
+    /* Um degrau acima do vazio: a coluna lê como chapa apoiada sobre a faixa,
+       não como retângulo recortado dela. */
+    --campo-plate: #101015;
+    /* 16,8:1 sobre a chapa — o texto de leitura. */
+    --campo-ink: #f2efe9;
+    /* 8,3:1 sobre a chapa: discreto por tamanho, nunca por contraste. */
+    --campo-ink-dim: #b0aca4;
+    /* 9,0:1. A mesma brasa da chapa do relevo, aqui só nos números medidos. */
+    --campo-ember: #ff9d5c;
+    /* Fio de junta. É régua, não texto: contraste baixo de propósito. */
+    --campo-rule: #26262d;
+
+    position: relative;
+    padding: 0;
+    /*
+     * Sem `background`, e isto é estrutural: o canvas do site vive em
+     * `z-index: -1`, *atrás* do documento. Qualquer cor pintada aqui taparia o
+     * crânio. O carvão da faixa vem do `setClearColor` do renderer dentro do
+     * recorte — `--campo-void` existe para os dois lados usarem o mesmo valor.
+     */
+    color: var(--campo-ink);
+  }
+
+  /* O layout genérico centra e limita a largura dos filhos diretos da seção;
+     aqui a faixa é o layout. */
+  .campo > * {
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  /*
+   * O palco não desenha nada. Ele é o retângulo que o `setScissor` recorta —
+   * transparente de propósito, para que o que apareça aqui seja o WebGL e não
+   * uma cor de CSS que só *parece* com ele.
+   */
+  .campo__stage {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+  }
+
+  /* Ver `buildMarkup`: dá ao giro uma tela de scroll antes de a coluna subir. */
+  .campo__spacer {
+    height: 100dvh;
+  }
+
+  .campo__copy {
+    position: relative;
+    background: var(--campo-plate);
+    border-block-start: 1px solid var(--campo-rule);
+    padding: var(--space-xl) var(--gutter) var(--space-2xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-m);
+    /* Uma tela cheia de coluna: é o que dá ao palco preso o tempo de scroll em
+       que a rotação acontece. Menos que isto e o crânio gira meio quarto de
+       volta e some. */
+    min-height: 100dvh;
+  }
+
+  .campo__eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--campo-ink-dim);
+  }
+
+  .campo__title {
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-wrap: balance;
+  }
+
+  .campo__lead {
+    font-size: var(--step-1);
+    line-height: var(--leading-snug);
+    max-width: 44ch;
+  }
+
+  .campo__body {
+    color: var(--campo-ink-dim);
+    max-width: 62ch;
+  }
+
+  .campo__figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--space-m);
+    margin-block-start: var(--space-2xs);
+    padding-block-start: var(--space-m);
+    border-block-start: 1px solid var(--campo-rule);
+  }
+
+  .campo__figure-value {
+    font-family: var(--font-mono);
+    font-size: var(--step-2);
+    line-height: 1.1;
+    color: var(--campo-ember);
+  }
+
+  .campo__figure-label {
+    margin-block-start: var(--space-3xs);
+    font-size: var(--step--1);
+    line-height: var(--leading-snug);
+    color: var(--campo-ink-dim);
+  }
+
+  .campo__hint,
+  .campo__colophon {
+    font-size: var(--step--1);
+    line-height: var(--leading-snug);
+    color: var(--campo-ink-dim);
+  }
+
+  .campo__hint {
+    font-family: var(--font-mono);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .campo__colophon {
+    margin-block-start: auto;
+    padding-block-start: var(--space-m);
+    border-block-start: 1px solid var(--campo-rule);
+  }
+
+  .campo__link {
+    color: var(--campo-ink);
+    text-decoration-thickness: 1px;
+  }
+
+  /* Só para leitores de tela: descreve o objeto que vive no canvas. */
+  .campo__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /*
+   * A partir daqui a coluna cabe ao lado do objeto em vez de por cima dele.
+   * 900px é onde 46ch de texto ainda deixam mais de metade da faixa livre para
+   * o crânio — abaixo disso a divisão daria duas metades apertadas, e o
+   * enquadramento em JS já resolve o caso empilhado sozinho (ver `readFreeRect`).
+   */
+  @media (min-width: 900px) {
+    /* Lado a lado a coluna nunca cobre o objeto: o espaçador perde a razão de
+       existir e vira só scroll vazio. */
+    .campo__spacer {
+      height: 0;
+    }
+
+    .campo__copy {
+      width: min(46%, 52rem);
+      border-block-start: none;
+      border-inline-end: 1px solid var(--campo-rule);
+      justify-content: center;
+      padding-block: var(--space-2xl);
+    }
+  }
+}

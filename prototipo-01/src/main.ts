@@ -1,5 +1,144 @@
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/typography.css';
+// F6 não é montada por JavaScript: o markup dela é inlinado no `index.html`
+// pelo plugin `forja-inline-principios` (ver `vite.config.ts`), e o que se move
+// lá é CSS scroll-driven. Só o estilo precisa entrar no bundle — é a prova do
+// P5 ("nativo primeiro"), e ela não valeria nada com um `mountSection` aqui.
+import '@/sections/principios/style.css';
 
-console.info('forja: boot');
+import { createEngine } from '@/engine';
+import { site } from '@/content/site';
+import { mountSection as mountHero } from '@/sections/hero';
+import { mountSection as mountTese } from '@/sections/tese';
+import { mountSection as mountReferencia } from '@/sections/referencia';
+import { mountSection as mountCampo } from '@/sections/campo';
+import { mountSection as mountRelevo } from '@/sections/relevo';
+import { mountSection as mountCatalogo } from '@/sections/catalogo';
+import { mountSection as mountMedicao } from '@/sections/medicao';
+import type { Engine } from '@/engine';
+
+/**
+ * Boot da página: um motor, um canvas, oito seções na ordem do documento.
+ *
+ * ══ A REGRA DO CANVAS ══════════════════════════════════════════════════════
+ *
+ * O canvas é **um só**, `position: fixed`, atrás do documento inteiro, e é
+ * criado sem alpha (`engine/gl.ts`). Disso saem três regras que **toda** seção
+ * que desenha precisa obedecer — elas não são estilo, são o contrato que
+ * impede as seções de se apagarem:
+ *
+ *  1. **Não existe clear global.** Ninguém limpa o canvas inteiro, nunca. Um
+ *     clear global aqui significaria ou dois renders por quadro, ou "quem
+ *     desenha por último vence" — que é o mesmo bug com dois sintomas.
+ *
+ *  2. **Toda seção que desenha usa `scissor` no próprio retângulo.** O clear do
+ *     `autoClear` respeita o scissor, então cada seção limpa e pinta só o seu
+ *     pedaço. Como as seções são blocos empilhados, os retângulos são disjuntos
+ *     por construção e a ordem de montagem deixa de importar.
+ *
+ *  3. **Quem mexe no estado do renderer devolve como encontrou**:
+ *     `clearColor`, `autoClear`, `scissorTest` e `viewport`. O estado do
+ *     renderer é global; sem a devolução, a seção seguinte herda o recorte da
+ *     anterior e desenha no lugar errado.
+ *
+ * O corolário de (1): **região que ninguém desenha fica preta**, porque o
+ * contexto é opaco. Quem não desenha WebGL nenhum (referência, princípios,
+ * medição) é opaco no CSS e serve de fundo do próprio pedaço — ver a regra
+ * "quem não desenha é opaco" em `styles/base.css`. Entre as duas coisas, cada
+ * pixel da página tem exatamente um dono.
+ *
+ * ══ ESTADO GLOBAL DE CÂMERA ════════════════════════════════════════════════
+ *
+ * `pointer.ray` depende de fov e aspect, e `pointer.setCamera` é global: a
+ * última seção a chamar mandava no raio de todas. A regra que resolve é a mesma
+ * do renderer — quem lê o raio chama `setCamera` **no próprio quadro**, antes
+ * de ler (hero, tese, campo). Quem tem câmera própria calcula o raio local e
+ * não toca no global (relevo, catálogo). Nos dois casos a ordem de montagem
+ * deixa de mudar o resultado.
+ *
+ * ══ TIER E REDUCED-MOTION ══════════════════════════════════════════════════
+ *
+ * Nenhum dos dois é um `if` no fim do arquivo. O tier chega às seções como
+ * **números** (dpr, escala de FBO, passos do ray march — `engine/tier.ts`) e
+ * `prefers-reduced-motion` troca o **frameloop** para `demand` dentro de
+ * `createEngine`: o quadro passa a ser pedido, não contínuo. Aqui os dois só
+ * são publicados no `<html>`, para o CSS e para a seção de medição os lerem.
+ */
+
+/** Assinatura única de seção. O retorno (handle ou `void`) não interessa ao boot. */
+type MountFn = (root: HTMLElement, engine: Engine) => unknown;
+
+/**
+ * A ordem é o argumento, não o layout: a média (hero) → por que ela acontece
+ * (tese) → um caso que escapou dela (referência) → a técnica-assinatura desse
+ * caso funcionando (campo) → o material (relevo) → o catálogo inteiro → os
+ * princípios → os números medidos. Campo vem colado na referência de propósito:
+ * o argumento e a prova não devem ficar a duas seções um do outro.
+ *
+ * `principios` não aparece: é a única seção sem JavaScript.
+ */
+const MOUNTS: ReadonlyArray<readonly [id: string, mount: MountFn]> = [
+  ['hero', mountHero],
+  ['tese', mountTese],
+  ['referencia', mountReferencia],
+  ['campo', mountCampo],
+  ['relevo', mountRelevo],
+  ['catalogo', mountCatalogo],
+  ['medicao', mountMedicao],
+];
+
+function findCanvas(): HTMLCanvasElement {
+  const canvas = document.getElementById('gl');
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    throw new Error('forja: <canvas id="gl"> não encontrado em index.html');
+  }
+  return canvas;
+}
+
+function findSection(id: string): HTMLElement {
+  const root = document.getElementById(id);
+  if (root === null) {
+    throw new Error(`forja: <section id="${id}"> não existe em index.html`);
+  }
+  return root;
+}
+
+/**
+ * Confere que o documento traz as mesmas seções que `content/site.ts` declara,
+ * e na mesma ordem. É essa lista que numera os capítulos (`§ 04`) e nomeia as
+ * seções na medição: se ela discordar do HTML, o site passa a mentir a
+ * numeração — em silêncio, que é o pior jeito de errar.
+ */
+function assertDocumentOrder(): void {
+  const declared = site.sections.map((section) => section.id).join(',');
+  const inDocument = Array.from(document.querySelectorAll('main > section'))
+    .map((section) => section.id)
+    .join(',');
+  if (declared !== inDocument) {
+    throw new Error(`forja: ordem das seções diverge — site.ts [${declared}] × DOM [${inDocument}]`);
+  }
+}
+
+function boot(): void {
+  assertDocumentOrder();
+
+  const engine = createEngine(findCanvas());
+  if (engine === null) {
+    // Sem WebGL2 não há degradação possível para as seções de cena; o documento
+    // segue legível, com F6 inteira (ela nunca precisou de JS) e os títulos.
+    document.documentElement.dataset['gl'] = 'off';
+    console.warn('forja: sem WebGL2 — seções de cena não serão montadas');
+    return;
+  }
+
+  const { tier, reducedMotion } = engine.gl;
+  // Publicados no `<html>` para o CSS e para F7 lerem o mesmo valor que o
+  // renderer está usando — nunca uma segunda detecção, que poderia divergir.
+  document.documentElement.dataset['tier'] = tier;
+  document.documentElement.dataset['motion'] = reducedMotion ? 'reduced' : 'full';
+
+  for (const [id, mount] of MOUNTS) mount(findSection(id), engine);
+}
+
+boot();

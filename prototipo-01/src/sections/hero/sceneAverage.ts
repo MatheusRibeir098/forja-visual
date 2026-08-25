@@ -35,7 +35,10 @@ export interface AverageScene extends Layer {
 
 export function createAverageScene(): AverageScene {
   const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(FULLSCREEN_TRIANGLE, POSITION_COMPONENTS));
+  geometry.setAttribute(
+    'position',
+    new BufferAttribute(FULLSCREEN_TRIANGLE, POSITION_COMPONENTS),
+  );
 
   const uniforms = {
     uAspect: { value: 1 },

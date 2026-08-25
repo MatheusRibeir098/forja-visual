@@ -1,25 +1,20 @@
-import { site, tecnicas } from '@/content';
+import { editorial, formatSectionMark, site, tecnicas } from '@/content';
 import { measurements } from '@/generated';
 
 /**
  * A página impressa da variante C, montada em DOM real.
  *
  * Todo texto de conteúdo vem de `@/content` e de `@/generated` — nada de string
- * de conteúdo dentro do canvas, e nenhum número inventado no colofão. As poucas
- * constantes daqui são *mobiliário editorial* (numeração, rótulo da nota,
- * data da edição): se a variante sobreviver à divergência, elas viram conteúdo.
+ * de conteúdo dentro do canvas, e nenhum número inventado no colofão. O
+ * mobiliário editorial (numeração de capítulo, rótulo da nota, data da edição)
+ * nasceu cravado aqui e migrou para `content/editorial.ts` quando o catálogo
+ * (F5) passou a usar as mesmas convenções.
  */
 
 export const HERO_TITLE_ID = 'hero-title';
 
 /** O hero é a primeira seção do documento — daí o `§ 01`. */
 const SECTION_INDEX = 0;
-
-/** Identificação da edição, no formato de uma revista. */
-const ISSUE_LABEL = 'Protótipo 01';
-const ISSUE_DATE = 'agosto de 2026';
-
-const NOTE_LABEL = 'Nota de margem';
 
 /** Casas decimais do peso no colofão: o script mede com duas. */
 const KB_DECIMALS = 2;
@@ -43,11 +38,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-/** `§ 01` — dois dígitos, como numeração de capítulo. */
-function sectionMark(index: number): string {
-  return `§ ${String(index + 1).padStart(2, '0')}`;
-}
-
 function formatKb(kb: number): string {
   return kb.toLocaleString('pt-BR', {
     minimumFractionDigits: KB_DECIMALS,
@@ -57,7 +47,11 @@ function formatKb(kb: number): string {
 
 /** Colofão: só números que algum script mediu (P6). O peso some se não houver medida. */
 function colophonItems(): string[] {
-  const items = [ISSUE_LABEL, ISSUE_DATE, `${tecnicas.length} técnicas`];
+  const items = [
+    editorial.issueLabel,
+    editorial.issueDate,
+    `${tecnicas.length} ${editorial.techniquesNoun}`,
+  ];
   const bundle = measurements.bundle;
   if (bundle !== null) items.push(`${formatKb(bundle.criticalKb)} KB no caminho crítico`);
   return items;
@@ -68,8 +62,8 @@ function buildMasthead(): HTMLElement {
   const section = site.sections[SECTION_INDEX];
   const runningHead =
     section === undefined
-      ? sectionMark(SECTION_INDEX)
-      : `${sectionMark(SECTION_INDEX)} — ${section.label}`;
+      ? formatSectionMark(SECTION_INDEX)
+      : `${formatSectionMark(SECTION_INDEX)} — ${section.label}`;
   masthead.append(
     el('p', 'hero-c__label hero-c__mark', runningHead),
     el('p', 'hero-c__label hero-c__folio', String(site.year)),
@@ -80,7 +74,7 @@ function buildMasthead(): HTMLElement {
 function buildNote(): HTMLElement {
   const note = el('aside', 'hero-c__note');
   note.append(
-    el('p', 'hero-c__label', NOTE_LABEL),
+    el('p', 'hero-c__label', editorial.noteLabel),
     el('p', 'hero-c__note-text', site.sucesso),
   );
   return note;

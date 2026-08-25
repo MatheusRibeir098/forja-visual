@@ -19,6 +19,7 @@ export const site: Site = {
     { id: 'hero', label: 'Início' },
     { id: 'tese', label: 'A tese' },
     { id: 'referencia', label: 'A referência' },
+    { id: 'campo', label: 'O campo' },
     { id: 'relevo', label: 'Relevo' },
     { id: 'catalogo', label: 'Catálogo' },
     { id: 'principios', label: 'Princípios' },
