@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "forja-visual",
+  "description": "Marketplace pessoal do plugin forge-visual",
+  "owner": {
+    "name": "MatheusRibeir098"
+  },
+  "plugins": [
+    {
+      "name": "forge-visual",
+      "description": "Constrói sites de alto impacto visual a partir de um questionário de direção visual: gera três variantes construídas de verdade para o usuário escolher, com técnicas escolhidas por mecanismo e medição objetiva (contraste, FPS) que reprova o build quando fora do padrão.",
+      "author": {
+        "name": "MatheusRibeir098"
+      },
+      "category": "design",
+      "source": "./plugin"
+    }
+  ]
+}
