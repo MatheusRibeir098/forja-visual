@@ -23,13 +23,16 @@ import './style.css';
  * nunca desenham no mesmo quadro — e no quadro exato da troca, a F2 abre na
  * mesma cena que o hero deixou, então a passagem não tem emenda.
  *
- * **Onde desenha:** só no retângulo do próprio hero, via `scissor` (a regra do
- * canvas está escrita em `main.ts`). O `composite` desenha um quad de tela
- * inteira, então sem o recorte o hero pintaria por cima das seções de baixo
- * enquanto sai — inclusive do texto delas. O recorte vale apenas para os
- * passes que vão à **tela**: o `three` usa `renderTarget.scissor` quando há um
- * render target ligado, então as duas camadas continuam sendo renderizadas
- * inteiras nos FBOs, que é o que a máscara precisa amostrar.
+ * **Onde desenha:** só no retângulo do próprio hero, dentro do FBO de página
+ * (a regra do canvas está escrita em `main.ts`). O `composite` desenha um quad
+ * de tela inteira, então sem o recorte o hero pintaria por cima das seções de
+ * baixo enquanto sai — inclusive do texto delas. O recorte é
+ * `gl.frame.setScissorCss(...)` (não `renderer.setScissor()`): o composite
+ * troca de render target por baixo dos panos, e o `three` reaplica o scissor
+ * **do alvo que acabou de ser ligado** a cada troca — só o scissor que mora no
+ * próprio `WebGLRenderTarget` sobrevive a isso. As duas camadas continuam
+ * sendo renderizadas inteiras nos FBOs internos do composite, que é o que a
+ * máscara precisa amostrar.
  */
 
 // ---------------------------------------------------------------------------
@@ -51,6 +54,26 @@ const AVERAGE_HOLD_S = 0.6;
 const WIPE_DURATION_S = 1.5;
 
 const TIMELINE_END_S = AVERAGE_HOLD_S + WIPE_DURATION_S;
+
+/**
+ * Pausa depois que a varredura termina e antes da mensagem de revelação
+ * começar a aparecer — "logo depois", não "junto com". Sem isso a mensagem
+ * nasceria no mesmo quadro em que a máscara termina, e a piada se perderia no
+ * meio do movimento da varredura.
+ */
+const MESSAGE_DELAY_S = 0.25;
+
+/** Duração da entrada da mensagem — curta, o suficiente para não parecer um corte seco. */
+const MESSAGE_REVEAL_S = 0.6;
+
+/**
+ * Fim real do relógio do hero: a varredura termina em `TIMELINE_END_S`, mas o
+ * relógio segue correndo até a mensagem de revelação também terminar de
+ * aparecer. `progress` (a varredura em si) já está em clamp01, então essa
+ * extensão não muda nada do que a máscara desenha — só dá tempo para a
+ * mensagem ter sua própria entrada, depois que a caricatura já sumiu.
+ */
+const MESSAGE_END_S = TIMELINE_END_S + MESSAGE_DELAY_S + MESSAGE_REVEAL_S;
 
 /**
  * Janelas de revelação de cada linha de texto, em espaço **curvado**: o mesmo
@@ -124,8 +147,23 @@ function applyReveal(reveal: Reveal, curved: number): void {
 interface HeroDom {
   stage: HTMLElement;
   block: HTMLElement;
+  /**
+   * A partir de 60rem (mesmo breakpoint de `.hero-lines`) sai do fluxo do
+   * bloco e vai para o canto superior direito do hero — por isso a seção
+   * precisa da referência própria, separada de `block`, para medir e proteger
+   * o seu próprio retângulo (ver `applySafeArea`).
+   */
+  message: HTMLElement;
   replay: HTMLButtonElement;
   reveals: Reveal[];
+  /**
+   * Reveals da mensagem de revelação, avançados por um relógio próprio (ver
+   * `MESSAGE_DELAY_S`/`MESSAGE_REVEAL_S`), separado de `reveals`. Vazio sob
+   * movimento reduzido — lá a mensagem entra em `reveals`, junto do resto do
+   * texto, porque se comporta como ele (aparece/some com o mesmo binário
+   * média/específico, sem entrada própria).
+   */
+  messageReveals: Reveal[];
 }
 
 function buildDom(root: HTMLElement, animated: boolean): HeroDom {
@@ -141,11 +179,23 @@ function buildDom(root: HTMLElement, animated: boolean): HeroDom {
   const lines = createElement('div', 'hero-lines');
   const tagline = createElement('p', 'hero-tagline hero-reveal', site.tagline);
   const goal = createElement('p', 'hero-goal hero-reveal', site.sucesso);
+  const message = createElement('div', 'hero-message');
+  const messageHeadline = createElement(
+    'p',
+    'hero-message-headline hero-reveal',
+    site.heroReveal.headline,
+  );
+  const messageBody = createElement(
+    'p',
+    'hero-message-body t-mono hero-reveal',
+    site.heroReveal.body,
+  );
   const replay = createElement('button', 'hero-replay hero-reveal', LABEL_REPLAY);
   replay.type = 'button';
 
   lines.append(tagline, goal);
-  block.append(index, title, rule, lines, replay);
+  message.append(messageHeadline, messageBody);
+  block.append(index, title, rule, lines, message, replay);
   stage.append(block);
   // Troca o conteúdo estático do `index.html` (o placeholder que existe para a
   // página fazer sentido sem JS) pelo palco de verdade.
@@ -158,17 +208,30 @@ function buildDom(root: HTMLElement, animated: boolean): HeroDom {
     { element: tagline, ...REVEAL_WINDOWS.tagline, applied: -1 },
     { element: goal, ...REVEAL_WINDOWS.goal, applied: -1 },
   ];
+  const messageReveals: Reveal[] = [];
 
   if (animated) {
     reveals.push({ element: replay, ...REVEAL_WINDOWS.replay, applied: -1 });
+    messageReveals.push(
+      { element: messageHeadline, start: 0, end: 1, applied: -1 },
+      { element: messageBody, start: 0, end: 1, applied: -1 },
+    );
   } else {
     // Sob movimento reduzido o botão vira um interruptor entre a média e o
     // específico: se ele fosse revelado pelo progresso, ficaria recortado
     // justamente no estado em que é o único jeito de voltar.
     replay.style.setProperty('--hero-reveal', '1');
+    // A mensagem, ao contrário do botão, deve sumir junto com o resto do
+    // texto quando o interruptor volta a mostrar a média — ela entra no
+    // `reveals` compartilhado (janela 0→1: com `curved` preso em 0 ou 1 pelo
+    // toggle, o valor final já é binário, sem animação de entrada).
+    reveals.push(
+      { element: messageHeadline, start: 0, end: 1, applied: -1 },
+      { element: messageBody, start: 0, end: 1, applied: -1 },
+    );
   }
 
-  return { stage, block, replay, reveals };
+  return { stage, block, message, replay, reveals, messageReveals };
 }
 
 /** Medida do bloco de texto que só muda em resize ou troca de fonte. */
@@ -180,11 +243,10 @@ interface BlockBox {
 
 export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   const { gl, ticker, beats, pointer, composite, reducedMotion } = engine;
-  const { renderer } = gl;
   const animated = !reducedMotion;
 
   root.classList.add('hero-root');
-  const { stage, block, replay, reveals } = buildDom(root, animated);
+  const { stage, block, message, replay, reveals, messageReveals } = buildDom(root, animated);
 
   const average = createAverageScene();
   const field = createFieldScene(gl.tier, animated);
@@ -204,7 +266,21 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
    */
   const blockBeat = beats.register(block, { start: 'enter', end: 'exit' });
 
+  /**
+   * Beat da mensagem de revelação — mesmo contrato de `blockBeat`, elemento
+   * diferente. A partir de 60rem ela sai do fluxo do bloco (vira o canto
+   * superior direito do hero, ver `hero/style.css`), então o retângulo que a
+   * protege precisa da sua própria posição, e não da do bloco: sem isto, em
+   * telas largas, a área escurecida ficaria presa embaixo do título enquanto
+   * a mensagem lê fora dela — foi exatamente esse tipo de gap que já quebrou
+   * o contraste do hero uma vez. Abaixo de 60rem ela continua dentro do
+   * bloco, então este segundo retângulo vira um subconjunto do primeiro:
+   * redundante, mas inofensivo (`min()` das duas atenuações no shader).
+   */
+  const messageBeat = beats.register(message, { start: 'enter', end: 'exit' });
+
   const box: BlockBox = { left: 0, width: 0, height: 0 };
+  const messageBox: BlockBox = { left: 0, width: 0, height: 0 };
 
   /**
    * Altura do hero, em px. Vem de um `ResizeObserver`, nunca do quadro: o
@@ -230,8 +306,23 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     box.height = rect.height;
   }
 
+  function measureMessage(): void {
+    if (disposed) return;
+    const rect = message.getBoundingClientRect();
+    messageBox.left = rect.left;
+    messageBox.width = rect.width;
+    messageBox.height = rect.height;
+  }
+
   /**
-   * Reserva no campo de limalha a área escurecida atrás do texto.
+   * Reserva a área escurecida atrás do texto — no campo (camada B) **e** na
+   * média (camada A). A varredura escolhe A ou B pixel a pixel sem saber onde
+   * o texto HTML está; se só a camada B protegesse a área, um pixel em que o
+   * threshold ainda não virou para B mostraria a média sem proteção nenhuma
+   * embaixo do texto (foi exatamente o que a medição de contraste pegou: um
+   * blob da média sobrevivendo sob o parágrafo já revelado). Protegendo as
+   * duas camadas, o resultado da mistura é escuro não importa qual lado o
+   * threshold escolheu ali.
    *
    * O retângulo é reconstruído a cada quadro a partir do beat, e não medido no
    * resize: o hero **rola junto com a página**, e uma medida presa ao resize
@@ -242,7 +333,21 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   function applySafeArea(): void {
     const { w, h } = gl.size;
     const top = h - blockBeat.progress * (h + box.height);
-    field.setSafeArea({ left: box.left, top, width: box.width, height: box.height }, w, h);
+    const rect = { left: box.left, top, width: box.width, height: box.height };
+
+    // Mesma inversão de `blockBeat`, com a altura e o beat da mensagem — os
+    // dois elementos rolam junto com a mesma página, então a mesma fórmula
+    // genérica (`computeBeatProgress` em `engine/beats.ts`) vale para os dois.
+    const messageTop = h - messageBeat.progress * (h + messageBox.height);
+    const messageRect = {
+      left: messageBox.left,
+      top: messageTop,
+      width: messageBox.width,
+      height: messageBox.height,
+    };
+
+    field.setSafeArea(rect, w, h, messageRect);
+    average.setSafeArea(rect, w, h, messageRect);
   }
 
   function applyViewport(): void {
@@ -250,6 +355,7 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     average.setAspect(aspect);
     field.resize(gl.size.w, gl.size.h);
     measureBlock();
+    measureMessage();
     applySafeArea();
     // Em `demand` (movimento reduzido) ninguém agendaria o quadro do redesenho.
     ticker.invalidate();
@@ -269,6 +375,7 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   // carregar reservaria uma área menor que o título final.
   void document.fonts.ready.then(() => {
     measureBlock();
+    measureMessage();
     ticker.invalidate();
   });
 
@@ -287,7 +394,14 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   replay.addEventListener('click', handleReplay);
 
   /**
-   * Desenha o composite recortado no retângulo do hero.
+   * Desenha o composite recortado no retângulo do hero, dentro do FBO de
+   * página (`gl.frame`, `engine/frame.ts`).
+   *
+   * O recorte vai em `gl.frame.setScissorCss(...)`, não em
+   * `renderer.setScissor()`: o composite troca de render target por baixo dos
+   * panos, e cada troca reaplica o scissor do alvo que acabou de ser ligado —
+   * só o scissor que mora no próprio `WebGLRenderTarget` sobrevive a isso (ver
+   * o comentário de `Frame.setScissorCss`).
    *
    * O rodapé sai da inversão do beat: a janela `top`→`exit` mede exatamente a
    * altura da seção, então `progress` 0 põe o rodapé em `sectionHeight` e 1 o
@@ -301,11 +415,8 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     );
     if (bottom <= 0) return;
 
-    const previousScissorTest = renderer.getScissorTest();
-    renderer.setScissorTest(true);
-    renderer.setScissor(0, canvasHeight - bottom, gl.size.w, bottom);
+    gl.frame.setScissorCss(0, canvasHeight - bottom, gl.size.w, bottom);
     composite.render();
-    renderer.setScissorTest(previousScissorTest);
   }
 
   const stopTicker = ticker.subscribe((dt, elapsed) => {
@@ -313,7 +424,7 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     // onde parou e a seção seguinte é dona do canvas.
     if (exitBeat.progress >= 1) return;
 
-    if (animated) clock = Math.min(clock + dt, TIMELINE_END_S);
+    if (animated) clock = Math.min(clock + dt, MESSAGE_END_S);
 
     // `pointer.setCamera` é estado global do motor: outra seção com câmera
     // própria pode tê-lo mudado no último resize. Reafirmar aqui, no quadro em
@@ -327,13 +438,28 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     // precisa entregar sRGB em vez de linear (ver `setDirectToScreen`).
     average.setDirectToScreen(progress <= 0);
     field.setDirectToScreen(progress >= 1);
+    // Governa a força da proteção de contraste da média (ver `paintSafeArea`
+    // em `variantAAverage`): zero no início do hold, força total bem antes de
+    // qualquer linha de texto começar a revelar.
+    average.setProgress(progress);
     applySafeArea();
     field.update(dt, elapsed, pointer);
 
     const curved = Math.pow(progress, DEFAULT_CURVE);
     for (const reveal of reveals) applyReveal(reveal, curved);
 
-    const animating = progress > 0 && progress < 1;
+    // Relógio próprio da mensagem de revelação: começa a contar só depois que
+    // a varredura termina (`progress` já preso em 1), então não pode ser
+    // derivado de `curved` — ele também fica preso em 1 nesse ponto. Vazio sob
+    // movimento reduzido (a mensagem já foi para `reveals` acima), então este
+    // laço não faz nada nesse modo.
+    const messageProgress = clamp01(
+      (clock - TIMELINE_END_S - MESSAGE_DELAY_S) / MESSAGE_REVEAL_S,
+    );
+    for (const reveal of messageReveals) applyReveal(reveal, messageProgress);
+
+    const animating =
+      (progress > 0 && progress < 1) || (messageProgress > 0 && messageProgress < 1);
     if (animating !== animatingFlag) {
       animatingFlag = animating;
       stage.dataset['animating'] = String(animating);
@@ -353,6 +479,7 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
       sectionObserver.disconnect();
       exitBeat.dispose();
       blockBeat.dispose();
+      messageBeat.dispose();
       replay.removeEventListener('click', handleReplay);
       stage.remove();
       root.classList.remove('hero-root');

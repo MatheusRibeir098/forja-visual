@@ -1,7 +1,13 @@
 /**
- * Measures what the browser downloads before first paint, gzipped — the 300 KB budget
- * from the spec (§6). "Critical" is derived from `dist/index.html` itself, not from a
- * hand-kept list, so adding a blocking <script> shows up here immediately.
+ * Measures what the browser downloads before first paint, gzipped, against the
+ * reference values from the spec (§6). "Critical" is derived from `dist/index.html`
+ * itself, not from a hand-kept list, so adding a blocking <script> shows up here
+ * immediately.
+ *
+ * The dono suspended the byte budget as a pass/fail gate: these numbers are now
+ * informative only, printed next to their reference value. This script still exits
+ * non-zero when it genuinely fails to measure (missing `dist/`, unreadable file, gzip
+ * failure) — never for exceeding a reference value.
  *
  *   pnpm tsx scripts/measure-bundle.ts
  */
@@ -16,10 +22,14 @@ import type { CriticalFile } from '../src/generated/types';
 const DIST_DIR = resolve(PROJECT_ROOT, 'dist');
 const ENTRY_HTML = join(DIST_DIR, 'index.html');
 
-/** Budgets from prompt.md §6. Breaking one fails the build on purpose. */
-const CRITICAL_BUDGET_KB = 300;
-const FONTS_BUDGET_KB = 80;
-const LAZY_BUDGET_KB = 600;
+/**
+ * Reference values from prompt.md §6. No longer a pass/fail gate — the dono suspended
+ * the byte budget in favor of visual quality. Kept here purely to print alongside the
+ * measured numbers, so the output still shows how much of the old reference is used.
+ */
+const CRITICAL_REFERENCE_KB = 300;
+const FONTS_REFERENCE_KB = 80;
+const LAZY_REFERENCE_KB = 600;
 
 const GZIP_LEVEL = 9;
 
@@ -149,27 +159,19 @@ function main(): void {
     bundle: { criticalKb, criticalFiles, fontsKb, lazyKb, totalKb, measuredAt },
   });
 
-  console.info('\nbundle (gzip -9, medido sobre dist/)');
+  console.info('\nbundle (gzip -9, medido sobre dist/) — números informativos, não reprovam o build');
   printTable([
     ...criticalFiles.map((f) => [`  ${f.file}`, `${f.kb.toFixed(2)} KB`] as const),
-    ['criticalKb', `${criticalKb.toFixed(2)} / ${CRITICAL_BUDGET_KB} KB`],
-    ['fontsKb', `${fontsKb.toFixed(2)} / ${FONTS_BUDGET_KB} KB`],
-    ['lazyKb', `${lazyKb.toFixed(2)} / ${LAZY_BUDGET_KB} KB (${lazyFiles.length} arquivos)`],
+    ['criticalKb', `${criticalKb.toFixed(2)} KB  (referência: ${CRITICAL_REFERENCE_KB} KB)`],
+    ['fontsKb', `${fontsKb.toFixed(2)} KB  (referência: ${FONTS_REFERENCE_KB} KB)`],
+    [
+      'lazyKb',
+      `${lazyKb.toFixed(2)} KB  (referência: ${LAZY_REFERENCE_KB} KB, ${lazyFiles.length} arquivos)`,
+    ],
     ['totalKb', `${totalKb.toFixed(2)} KB`],
   ]);
 
-  const breaches = [
-    criticalKb > CRITICAL_BUDGET_KB ? `criticalKb ${criticalKb} > ${CRITICAL_BUDGET_KB}` : null,
-    fontsKb > FONTS_BUDGET_KB ? `fontsKb ${fontsKb} > ${FONTS_BUDGET_KB}` : null,
-    lazyKb > LAZY_BUDGET_KB ? `lazyKb ${lazyKb} > ${LAZY_BUDGET_KB}` : null,
-  ].filter((breach): breach is string => breach !== null);
-
-  if (breaches.length > 0) {
-    console.error(`\nORÇAMENTO ESTOURADO: ${breaches.join('; ')}`);
-    process.exitCode = 1;
-    return;
-  }
-  console.info('\nOK — dentro do orçamento.');
+  console.info('\nOK — medido (orçamento de bytes é informativo, não reprova o build).');
 }
 
 main();

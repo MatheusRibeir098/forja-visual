@@ -2,7 +2,7 @@
  * Transforma um `.stl` de crânio na nuvem de pontos + oclusor que a seção
  * "Campo" carrega (técnicas V.1 e V.5).
  *
- *   pnpm tsx scripts/build-points.ts [caminho/do/Skull.stl] [--points=12000] [--tris=4200]
+ *   pnpm tsx scripts/build-points.ts [caminho/do/Skull.stl] [--points=45000] [--tris=8000]
  *
  * ## Origem do modelo — atribuição obrigatória
  *
@@ -41,9 +41,9 @@
  * por 32767 na busca de atributo, de graça, e o vertex shader multiplica a
  * posição por `uRadius`. É a técnica V.5 do catálogo.
  *
- * Precisão não é problema: com ~12k pontos numa esfera de raio 1 os vizinhos
- * ficam a ~0,05 de distância e o quantum do `Int16` é 0,00003 — mil vezes mais
- * fino que o espaçamento.
+ * Precisão não é problema: com ~45k pontos numa esfera de raio 1 os vizinhos
+ * ficam a ~0,026 de distância e o quantum do `Int16` é 0,00003 — quase mil
+ * vezes mais fino que o espaçamento.
  *
  * ### Ordem embaralhada de propósito
  *
@@ -116,30 +116,35 @@ const SEED = 0x5c_a1_ab_1e;
 /**
  * Pontos gravados no arquivo.
  *
- * Escolhido pela medição, não pelo gosto. O teto de assets lazy da spec (§6) é
- * 600 KB gzip e o relevo já consome 312 KB deles, então sobram 288 KB. A 14
- * bytes por ponto — e `Int16` de posição é praticamente incompressível, então
- * o gzip devolve quase o tamanho cru — 12.000 pontos medem **163,1 KB** e o
- * oclusor **32,5 KB**: 195,6 KB o par, 92 KB de folga dentro do teto.
+ * Escolhido pela medição, não pelo gosto — mas o gosto mudou de dono: o teto de
+ * assets lazy da spec (§6) foi suspenso e 600 KB gzip virou número informativo,
+ * não critério de reprovação. A 14 bytes por ponto — e `Int16` de posição é
+ * praticamente incompressível, então o gzip devolve quase o tamanho cru —
+ * 45.000 pontos medem **610,8 KB** e o oclusor **62,2 KB**: 673,0 KB o par.
  *
- * O que 12k compram: o depth prepass descarta 52,8% da nuvem (medido abaixo),
- * então ~5,7k pontos chegam à face visível. Numa silhueta de ~530 px de altura
- * isso dá um vizinho a cada ~5 px, que é a densidade em que uma nuvem lê como
- * superfície em vez de como poeira — e sem o oclusor a mesma luz teria que ser
- * dividida por 12.000 pontos, metade deles somando por dentro da silhueta.
+ * O que 45k compram: o depth prepass descarta ~53,7% da nuvem (medido abaixo),
+ * então ~21k pontos chegam à face visível. Numa silhueta de ~530 px de altura
+ * isso dá um vizinho a cada ~2,5 px — a densidade em que a órbita, o arco
+ * zigomático e a linha da mandíbula deixam de ser inferidos e passam a ser
+ * desenhados. A 12.000 pontos (~5,7k visíveis, ~5 px de vizinho) a nuvem lia
+ * como *sugestão* de crânio; a 3,75× mais pontos ela lê como superfície.
  */
-const DEFAULT_TARGET_POINTS = 12_000;
+const DEFAULT_TARGET_POINTS = 45_000;
 
 /**
  * Triângulos alvo do oclusor.
  *
  * A malha é invisível: a única coisa que ela precisa acertar é **onde a
  * superfície próxima está**. Abaixo de ~2,5k a silhueta começa a cortar o arco
- * zigomático e o queixo; acima de ~6k o payload cresce por precisão de
- * profundidade que ninguém vê, já que os pontos sobre ela têm 3–5 px de
- * largura. 4.200 fica no meio e custa menos de 40 KB.
+ * zigomático e o queixo. A nuvem subiu de 12k para 45k pontos — a 45k, um
+ * vizinho a cada ~2,5 px expõe erro de silhueta que 4.200 triângulos
+ * perdoavam a 12k; a grade fica visível como faceta na borda da mandíbula e
+ * do zigomático. 8.000 dobra a resolução da grade de decimação (medido
+ * abaixo: reduz o encolhimento necessário de 4,0% para 3,2% do raio, e o
+ * piso de auto-oclusão real cai de 19,6% para 18,8% — a malha mais fina erra
+ * menos, então precisa comer menos anatomia para compensar) e custa 62,2 KB.
  */
-const DEFAULT_TARGET_TRIANGLES = 4_200;
+const DEFAULT_TARGET_TRIANGLES = 8_000;
 
 /** Magic, versão e tamanho do cabeçalho de `skull-hull.bin`. Tabela acima. */
 const HULL_MAGIC = 'FHUL';
@@ -177,24 +182,33 @@ const HULL_RESIDUAL_PERCENTILE = 0.95;
  * fato de os pontos serem amostras de superfície interpoladas, não vértices do
  * mesmo conjunto que gerou os representantes.
  *
- * 0,018 porque é onde o encolhimento total fecha em **4,0% do raio**, o valor
- * que o catálogo (V.1) registra. Varredura de 0,006 a 0,030 neste crânio, com
- * o diagnóstico `frontFacingDiscarded` como juiz:
+ * 0,018 é o mesmo valor do catálogo (V.1), e continua sendo o certo depois de
+ * subir a nuvem para 45k pontos e o oclusor para 8k triângulos — mas isso não
+ * é suposição, é nova varredura, porque a malha mais fina muda o resíduo que a
+ * margem paga por cima. Re-varrido de 0,015 a 0,020 neste crânio (faixa mais
+ * estreita que a original: com o dobro de resolução de grade, o mínimo já
+ * estava óbvio perto do valor antigo), com `frontFacingDiscarded` como juiz:
  *
  * | margem | encolhimento | descarte total | frente engolida |
  * | ------ | ------------ | -------------- | --------------- |
- * | 0,006  | 2,8%         | 54,9%          | 19,8%           |
- * | 0,012  | 3,4%         | 53,7%          | 19,6%           |
- * | 0,018  | **4,0%**     | 52,8%          | **19,6%**       |
- * | 0,024  | 4,6%         | 52,1%          | 19,8%           |
- * | 0,030  | 5,2%         | 51,5%          | 20,0%           |
+ * | 0,015  | 2,7%         | 54,3%          | 18,9%           |
+ * | 0,016  | 2,9%         | 54,0%          | 18,9%           |
+ * | 0,017  | 3,1%         | 53,9%          | 18,8%           |
+ * | 0,018  | **3,2%**     | 53,7%          | **18,8%**       |
+ * | 0,019  | 3,4%         | 53,5%          | 18,8%           |
+ * | 0,020  | 3,6%         | 53,4%          | 18,8%           |
  *
- * A leitura importante é que a coluna da direita **não se move**: os ~20% de
- * pontos virados para a câmera que somem são auto-oclusão real do crânio
- * (dentes atrás do arco zigomático, fundo da órbita atrás da sobrancelha,
- * fossa temporal), não anatomia comida pelo casco. Encolher mais só devolve
- * pontos do lado de trás, que é justamente o que a técnica existe para
- * remover — por isso a margem para no ponto do catálogo em vez de crescer.
+ * Duas leituras importantes. Primeiro, a coluna da direita continua **não se
+ * mexendo** dentro da faixa varrida — mesmo diagnóstico do catálogo: o que
+ * sobra de auto-oclusão real (dentes atrás do arco zigomático, fundo da órbita
+ * atrás da sobrancelha, fossa temporal) não depende da margem, só a fração de
+ * anatomia comida pelo casco dependeria, e ela não se move. Segundo, o piso
+ * **caiu** de 19,6% (catálogo, 4.200 triângulos) para 18,8% (8.000
+ * triângulos): a malha mais fina erra menos, então precisa comer menos
+ * anatomia real para compensar o próprio erro — o oclusor de mais resolução é
+ * estritamente melhor, não só mais preciso na silhueta. O encolhimento total
+ * caiu de 4,0% para 3,2% do raio pelo mesmo motivo: menos erro de decimação
+ * para o resíduo pagar.
  */
 const HULL_SHRINK_MARGIN = 0.018;
 

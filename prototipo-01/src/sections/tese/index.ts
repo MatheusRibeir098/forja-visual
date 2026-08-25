@@ -33,11 +33,14 @@ import './style.css';
  * com a máscara em 0, em 0,5 ou em 1.
  *
  * ── ONDE ESTA SEÇÃO DESENHA ────────────────────────────────────────────────
- * Só dentro do **próprio retângulo**, via `scissor` (a regra do canvas está em
- * `main.ts`). O `composite` termina num quad de tela inteira; sem o recorte, a
- * F2 pintaria por cima das seções vizinhas. O recorte só afeta os passes que
- * vão à tela — com um render target ligado o `three` usa `renderTarget.scissor`,
- * então as duas camadas continuam inteiras nos FBOs que a máscara amostra.
+ * Só dentro do **próprio retângulo**, no FBO de página (a regra do canvas está
+ * em `main.ts`). O `composite` termina num quad de tela inteira; sem o
+ * recorte, a F2 pintaria por cima das seções vizinhas. O recorte é
+ * `gl.frame.setScissorCss(...)`, não `renderer.setScissor()`: o composite
+ * troca de render target por baixo dos panos, e cada troca reaplica o scissor
+ * do alvo recém-ligado — só o scissor que mora no próprio `WebGLRenderTarget`
+ * sobrevive a isso. As duas camadas continuam inteiras nos FBOs internos que
+ * a máscara amostra.
  *
  * E a seção desenha **enquanto estiver visível**, não só durante a janela da
  * máscara: fora dela o progresso está cravado em 0 (o campo, igual ao que o
@@ -161,7 +164,6 @@ function buildColumn(): HTMLElement {
 
 export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   const { gl, ticker, beats, pointer, composite, reducedMotion } = engine;
-  const { renderer } = gl;
 
   root.replaceChildren();
   root.classList.add('tese-root');
@@ -227,9 +229,10 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
   sectionObserver.observe(root);
 
   /**
-   * Desenha o composite recortado no retângulo visível da seção. Devolve o
-   * `scissorTest` como encontrou: o estado do renderer é global e a seção
-   * seguinte no mesmo quadro herdaria o recorte.
+   * Desenha o composite recortado no retângulo visível da seção, dentro do
+   * FBO de página. `gl.frame.setScissorCss` grava o recorte no próprio
+   * `WebGLRenderTarget` — é o que sobrevive às trocas de render target que o
+   * composite faz por dentro (ver o comentário do módulo).
    */
   function drawClipped(): void {
     const canvasHeight = gl.size.h;
@@ -239,11 +242,8 @@ export function mountSection(root: HTMLElement, engine: Engine): SectionHandle {
     const height = bottom - top;
     if (height <= 0) return;
 
-    const previousScissorTest = renderer.getScissorTest();
-    renderer.setScissorTest(true);
-    renderer.setScissor(0, toGlBottom(top, height, canvasHeight), gl.size.w, height);
+    gl.frame.setScissorCss(0, toGlBottom(top, height, canvasHeight), gl.size.w, height);
     composite.render();
-    renderer.setScissorTest(previousScissorTest);
   }
 
   const stopTicker = ticker.subscribe((dt, elapsed) => {

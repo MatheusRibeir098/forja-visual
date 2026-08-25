@@ -122,14 +122,33 @@ export const DEFAULT_RADIUS = 1.35;
  * mesmos 4,2 px para um espaçamento de 2,8 px no celular (mancha: 0,9% dos
  * pixels da faixa saturavam, contra 0,1% no desktop).
  *
- * 11,4 é o valor que produz 4,2 px no enquadramento de 1280×720. A régua é o
- * espaçamento: 12.000 pontos, prepass descartando 52,8% deles (medido em
- * `scripts/build-points.ts`), ~5,7k pontos sobre uma silhueta de ~530 px de
- * altura — um vizinho a cada ~5 px. Medido no navegador, a cobertura da caixa
- * do objeto sai de 6% (sprite de 2,7 px) para ~46% da caixa da silhueta, que é
- * onde a superfície fecha sem os discos se fundirem numa mancha.
+ * A nuvem subiu de 12.000 para 45.000 pontos (~5,7k → ~21k visíveis depois do
+ * prepass), então o espaçamento entre vizinhos encolheu de ~5 px para ~2,5 px
+ * e o sprite precisou encolher junto — na mesma proporção, ou a soma aditiva
+ * de vizinhos mais próximos vira mancha. `5,7` é a metade do `11,4` do
+ * catálogo (12k pontos): produz ~2,1 px de sprite no enquadramento de
+ * 1280×720, contra os 4,2 px de antes.
+ *
+ * Recalibrado por medição de **saturação de pixel**, não por proporção
+ * suposta: uma tela cheia de sprites em blend aditivo satura (canal ≥250/255)
+ * onde vizinhos se sobrepõem o bastante para clipar. Screenshot da
+ * `.campo__stage`, decodificado no próprio navegador (mesma técnica de
+ * `measure-contrast.ts`), contando a fração de pixels saturados:
+ *
+ * | `SIZE_PER_RADIUS` | desktop 1280×720 dpr2 | mobile 375×667 dpr1 |
+ * | ------------------ | --------------------- | ------------------- |
+ * | 11,4 (valor antigo) | 1,128%                | 1,699%               |
+ * | 8,0                 | 0,434%                | 0,520%               |
+ * | 6,0                 | 0,138%                | 0,165%               |
+ * | **5,7**             | **0,113%**            | **0,128%**           |
+ * | 5,0                 | 0,063%                | 0,072%               |
+ *
+ * `5,7` mira o mesmo alvo do catálogo (~0,12%) e reproduz a mesma propriedade
+ * registrada lá: `uSize` proporcional ao raio **iguala** a saturação entre
+ * desktop e celular (0,113% vs 0,128%, a ~13% um do outro) em vez de deixar o
+ * celular saturar ~9× mais como um `uSize` fixo faria.
  */
-export const SIZE_PER_RADIUS = 11.4;
+export const SIZE_PER_RADIUS = 5.7;
 
 /** Piso: abaixo de 1 px o ponto pisca entre quadros conforme o sub-pixel. */
 export const DEFAULT_MIN_SIZE = 1;

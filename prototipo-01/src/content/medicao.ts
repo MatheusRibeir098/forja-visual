@@ -35,13 +35,13 @@ export interface MedicaoCopy {
 export const medicao: MedicaoCopy = {
   eyebrow: 'P7 — o que dá para provar',
   title: 'Os números deste site',
-  lead: 'Todo orçamento desta página foi entrada do projeto, não validação no fim. Os valores abaixo saem do dist/ recém-construído e do motor rodando agora, nesta aba — não de uma tabela escrita à mão.',
+  lead: 'Toda referência desta página foi entrada do projeto, não validação no fim. Os valores abaixo saem do dist/ recém-construído e do motor rodando agora, nesta aba — não de uma tabela escrita à mão.',
   columns: {
     metric: 'Métrica',
     measured: 'Medido',
-    budget: 'Teto',
+    budget: 'Referência',
   },
-  caption: 'Orçamentos da spec §6 contra o que foi medido.',
+  caption: 'Referências da spec §6 confrontadas com o medido — bytes informam, contraste e FPS reprovam.',
   rows: {
     critico: 'Caminho crítico',
     fontes: 'Fontes',
@@ -62,7 +62,7 @@ export const medicao: MedicaoCopy = {
   },
   missing: 'não medido',
   missingNote: 'Nenhum script produziu este valor ainda: rode pnpm build && pnpm measure.',
-  status: { ok: 'dentro do orçamento', over: 'fora do orçamento' },
+  status: { ok: 'dentro do critério', over: 'fora do critério' },
   footer: {
     label: 'Última medição',
     measuredAt: 'medido em',

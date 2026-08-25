@@ -35,7 +35,16 @@
  * Still "texture instead of runtime procedural" (rule VI.5) — and the amplitude becomes
  * tunable without regenerating the asset.
  *
- * Exit codes: 0 ok · 1 an asset broke its size budget at every resolution tried.
+ * ── SIZE BUDGET IS INFORMATIVE, NOT A GATE ──────────────────────────────────────────
+ * The byte ceilings below (`*_BUDGET_KB`) used to pick the resolution and fail the
+ * build. The project owner lifted that ceiling for this asset: the band this plate
+ * fills is 2560 px wide at dpr 2, and the previous 1280×720 depth map left every texel
+ * covering two screen pixels — a blurred bevel and a stair-stepped shadow edge. The
+ * budgets still print (they are useful context for anyone reading the console output),
+ * they just no longer set a non-zero exit code. The gates that still fail a build are
+ * quality, not cost: 60 FPS on real GPU, contrast, WCAG, `prefers-reduced-motion`.
+ *
+ * Exit codes: 0 ok (bytes are printed either way, over budget or not).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -50,14 +59,19 @@ const WORD_WIDTH_FRACTION = 0.8;
 const FONT_PATH = resolve(PROJECT_ROOT, 'public/fonts/instrument-serif-400-latin.woff2');
 const OUT_DIR = resolve(PROJECT_ROOT, 'public/relief');
 
-/** Full size first; the fallback exists because PNG cannot cheat on a 16-bit field. */
-const RESOLUTIONS = [
-  { width: 1600, height: 900 },
-  { width: 1280, height: 720 },
-] as const;
+/**
+ * 3200×1800: the band this plate fills is 2560 px wide at dpr 2, so this keeps the
+ * depth map at roughly one texel per screen pixel instead of the previous 1:2 stretch.
+ * Same 16:9 aspect as the old 1280×720 asset (2.5× on each axis), so every constant
+ * derived from that ratio in `relight.ts` (`uFieldAspect`) still holds unchanged.
+ * Kept as an array — and the loop below kept generic — in case a future asset ever
+ * needs the old shrink-on-budget-miss behaviour back; today the loop runs once.
+ */
+const RESOLUTIONS = [{ width: 3200, height: 1800 }] as const;
 
 const ALBEDO_BUDGET_KB = 200;
-const DEPTH_BUDGET_KB = 300;
+/** Informative only (see header) — measured ≈1.5 MB at 3200×1800, ceiling padded to spare. */
+const DEPTH_BUDGET_KB = 2000;
 const GRAIN_BUDGET_KB = 80;
 const PREVIEW_BUDGET_KB = 40;
 
@@ -65,14 +79,27 @@ const PREVIEW_BUDGET_KB = 40;
 const PLATE_HEIGHT = 0.5;
 const LETTER_HEIGHT = 0.15;
 /**
- * Three box passes of radius 8 spread the letter mask over roughly 12 px before it
- * saturates — that ramp is the bevel width the technique asks for.
+ * Three box passes spread the letter mask into the bevel ramp. Radius scales with the
+ * texture (2.5× the 8 px tuned for the old 1280×720 asset) so the ramp keeps the same
+ * *physical* width — same fraction of the plate, same ~45° bevel that
+ * `DEFAULT_HEIGHT_SCALE` in `relight.ts` was derived from — just described with 2.5×
+ * more texels. That is the whole point of the resolution bump: the geometry is
+ * identical, only the sampling density (and therefore the on-screen sharpness) changes.
  */
-const BEVEL_BLUR_RADIUS_PX = 8;
-/** 1–2 px of final blur kills the 8-bit staircase the relight shader would light up. */
-const FINAL_BLUR_RADIUS_PX = 1;
+const BEVEL_BLUR_RADIUS_PX = 20;
+/** Final blur, same 2.5× scale as the bevel radius — kills the 8-bit staircase. */
+const FINAL_BLUR_RADIUS_PX = 3;
 
-/** Seamless grain tile. 16/32 cells over 256 px = features of 16 px and 8 px. */
+/**
+ * Seamless grain tile, still 256×256 — this one does *not* scale with the main asset.
+ * Its on-screen feature size is `assetHeight / uGrainTiles / cells` (see the
+ * `DEFAULT_GRAIN_TILES` comment in `relight.ts`): a function of the plate's physical
+ * size and the noise cell count, not of how many texels the tile is rasterised at.
+ * `valueNoise` is already smoothly interpolated at generation time (the lattice is
+ * `smoothstep`-blended before it ever touches a pixel), so 256 px carries the same
+ * information a bigger tile would — the extra texels would cost bytes without adding
+ * detail. Regenerated on every run regardless, so it stays in lockstep with depth/albedo.
+ */
 const GRAIN_TILE_SIZE = 256;
 const GRAIN_OCTAVES = [
   { cells: 16, amplitude: 1 },
@@ -492,6 +519,7 @@ async function generate(
   };
 }
 
+/** Informative only (see header) — no longer decides resolution or the exit code. */
 function withinBudget(artifacts: Artifacts): boolean {
   return (
     artifacts.albedoKb <= ALBEDO_BUDGET_KB &&
@@ -518,7 +546,7 @@ async function main(): Promise<void> {
       );
       chosen = artifacts;
       if (withinBudget(artifacts)) break;
-      console.info('  acima do teto — repetindo na resolução menor');
+      console.info('  acima do teto informativo — seguindo mesmo assim (regra suspensa)');
     }
     if (chosen === null) throw new Error('nenhuma resolução gerada');
 
@@ -557,8 +585,9 @@ async function main(): Promise<void> {
     console.info(`  o shader soma o grão com amplitude ${GRAIN_AMPLITUDE} (ver cabeçalho)`);
 
     if (!withinBudget(chosen)) {
-      console.error('\nORÇAMENTO ESTOURADO mesmo na menor resolução.');
-      process.exitCode = 1;
+      console.info(
+        '\nacima do teto informativo — não falha o build (regra suspensa pelo dono do projeto).',
+      );
     }
   } finally {
     await browser.close();

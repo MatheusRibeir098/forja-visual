@@ -16,6 +16,15 @@ export interface TierSettings {
   rayMarchSamples: number;
   /** Escala dos render targets em relação à viewport, 0.5–1. */
   fboScale: number;
+  /**
+   * Portão do bloom do passe de grade (`engine/frame.ts`/`shaders/grade.ts`).
+   * 0 desliga; >0 liga. Deixou de ser contagem de níveis de mip-chain — o
+   * bloom agora é inline (taps largos direto no FBO de página, sem
+   * `setRenderTarget` extra; ver a nota em `grade.ts`) — mas continua um
+   * número lido em tempo de execução (`uBloomEnabled`), não um `if` de
+   * arquitetura: mesmo shader de grade em todo tier.
+   */
+  bloomLevels: number;
 }
 
 export const TIER_SETTINGS: Record<Tier, TierSettings> = {
@@ -32,6 +41,13 @@ export const TIER_SETTINGS: Record<Tier, TierSettings> = {
     // Metade da resolução nos FBOs — o quad final reescala e o softness da
     // máscara esconde a interpolação.
     fboScale: 0.5,
+    // Medido em `measure-fps.ts`: `low` tem 15x menos pixels que `high` mas
+    // gasta *mais* tempo de GPU (10,54 ms vs 14,21 ms) — o gargalo lá é
+    // overhead de geometria/draw call, não fill rate. Um bloom cujo custo
+    // escala com pixels não ataca esse gargalo, só soma trabalho a uma GPU
+    // já no limite. `low` fica só com o grade barato (curva+vinheta+grão+
+    // dither), que não escala com o problema real do tier.
+    bloomLevels: 0,
   },
   mid: {
     // 1.5 é o meio-termo em telas de celular: nítido o bastante, ~2.2x menos
@@ -43,6 +59,10 @@ export const TIER_SETTINGS: Record<Tier, TierSettings> = {
     // para `mid`, e o que cabe no orçamento de fetch em celular a dpr 1.5.
     rayMarchSamples: 4,
     fboScale: 0.75,
+    // Bloom inline ligado (ver a nota do módulo em `grade.ts`): um único
+    // passe, 8 taps, sem `setRenderTarget` extra — cabe no orçamento de
+    // `mid` sem o risco de cauda que a antiga cadeia de mips tinha.
+    bloomLevels: 1,
   },
   high: {
     // Teto em 2 mesmo em telas 3x: acima de 2 o ganho visual não paga o custo
@@ -58,6 +78,21 @@ export const TIER_SETTINGS: Record<Tier, TierSettings> = {
     // FPS a dpr 2: os 48 daqui eram 6× o custo do laço pela mesma imagem.
     rayMarchSamples: 8,
     fboScale: 1,
+    // Religado em 2026-08-25 após diagnóstico correto da cauda de p5.
+    // O bloom (inline, `grade.ts`, zero `setRenderTarget` extra) nunca foi a
+    // causa da instabilidade: com bloom OFF a cauda persiste idêntica (p5
+    // 30,0 / 30,1 / 30,0 em 3 execuções) e com bloom ON a mediana de GPU
+    // fica em 11,2–11,3 ms / p95 14,8–16,5 ms — bem dentro do teto de
+    // 16,67 ms de um quadro a 60 fps. A GPU cabe nos dois casos; quem some
+    // é o vsync do navegador. Esta máquina de medição roda o Chrome de
+    // teste ao lado do desktop do dono, com Spotify a ~49% de CPU (processo
+    // de GPU próprio) e um Chrome pessoal com ~30 processos disputando a
+    // mesma GPU integrada — é contenção de ambiente compartilhado, não
+    // custo do nosso quadro. Métrica correta pra decidir orçamento de GPU é
+    // a MEDIANA (reflete o nosso frame), não o p5 (reflete quem mais está
+    // rodando na máquina nesse instante). Não desligue o bloom de novo por
+    // causa do p5 sem medir a mediana de GPU primeiro.
+    bloomLevels: 1,
   },
 };
 

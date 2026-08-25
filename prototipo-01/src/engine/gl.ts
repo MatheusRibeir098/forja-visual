@@ -1,5 +1,7 @@
 import { NoToneMapping, SRGBColorSpace, WebGLRenderer } from 'three';
+import { createFrame } from './frame';
 import { TIER_SETTINGS, detectTier } from './tier';
+import type { Frame } from './frame';
 import type { Tier, TierSettings } from './tier';
 
 /**
@@ -28,6 +30,12 @@ export interface GL {
   readonly tier: Tier;
   readonly settings: TierSettings;
   readonly reducedMotion: boolean;
+  /**
+   * O FBO de página compartilhado e o passe de grade final — ver
+   * `engine/frame.ts`. Toda seção que desenha usa `frame.target` no lugar do
+   * backbuffer; só `main.ts` chama `beginFrame`/`present`.
+   */
+  readonly frame: Frame;
   dispose(): void;
 }
 
@@ -120,21 +128,30 @@ export function createGL(canvas: HTMLCanvasElement): GL | null {
   const rect = canvas.getBoundingClientRect();
   applySize(rect.width || window.innerWidth, rect.height || window.innerHeight);
 
+  function onResize(fn: ResizeListener): () => void {
+    listeners.add(fn);
+    return () => {
+      listeners.delete(fn);
+    };
+  }
+
+  // Construído depois do resto do contexto porque precisa de `renderer`,
+  // `size` e `onResize` já prontos — é o próprio `GL` que ele recorta, então
+  // não pode nascer antes dele.
+  const frame = createFrame({ renderer, size, onResize, settings });
+
   return {
     renderer,
     canvas,
     size,
-    onResize(fn: ResizeListener): () => void {
-      listeners.add(fn);
-      return () => {
-        listeners.delete(fn);
-      };
-    },
+    onResize,
     rendererName: report.renderer,
     tier: report.tier,
     settings,
     reducedMotion: report.reducedMotion,
+    frame,
     dispose(): void {
+      frame.dispose();
       observer.disconnect();
       window.removeEventListener('resize', handleWindowResize);
       listeners.clear();

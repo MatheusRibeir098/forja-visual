@@ -55,6 +55,20 @@ export interface FpsMeasurement {
   readonly durationS: number;
   readonly viewport: string;
   readonly measuredAt: string;
+  /**
+   * GPU time per frame via `EXT_disjoint_timer_query_webgl2`, in ms. `null`/absent when
+   * the extension was unavailable, or when every sample was discarded for disjoint.
+   * Optional so older `measurements.json` snapshots (written before this field existed)
+   * keep parsing.
+   */
+  readonly gpuFrameMsMedian?: number | null;
+  readonly gpuFrameMsP95?: number | null;
+  /** ms left until the 16.67ms vsync budget, based on `gpuFrameMsP95`. */
+  readonly gpuHeadroomMs?: number | null;
+  /** Timer-query intervals thrown away because the driver reported `GPU_DISJOINT_EXT`. */
+  readonly gpuDisjointSamples?: number;
+  /** Whether `EXT_disjoint_timer_query_webgl2` was available in this browser/context. */
+  readonly gpuTimerAvailable?: boolean;
 }
 
 /** `scripts/build-relief.ts` — weight of the generated relief asset pair. */

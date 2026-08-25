@@ -87,12 +87,41 @@ const POSITION_JITTER = 0.35;
 // Área segura do texto
 // ---------------------------------------------------------------------------
 
-/** Margem em NDC somada ao retângulo medido do texto, para cobrir o overshoot dos glifos. */
-const SAFE_MARGIN_NDC = 0.06;
+/**
+ * Margem em NDC somada ao retângulo medido do texto, para cobrir o overshoot
+ * dos glifos. Exportada: a cena A (`sceneAverage`) protege o mesmo retângulo
+ * pelo mesmo motivo (ver `applySafeArea` em `hero/index.ts`), e as duas
+ * precisam concordar em pixel — margens diferentes abririam uma fresta clara
+ * entre as duas proteções durante a mistura do threshold.
+ */
+export const SAFE_MARGIN_NDC = 0.06;
 /** Largura da queda suave em volta da área segura. 0.35 NDC lê como luz, não como recorte. */
-const SAFE_FEATHER_NDC = 0.35;
+export const SAFE_FEATHER_NDC = 0.35;
 /** Centro usado quando não há texto medido: fora da tela, atenuação nenhuma. */
 const SAFE_CENTER_OFFSCREEN = new Vector2(0, -10);
+
+/**
+ * Converte um retângulo em px CSS para centro/meia-extensão em NDC. Repetida
+ * pelas duas cenas (`sceneField`/`sceneAverage`) e pelas duas regiões de cada
+ * uma — exportada para as quatro chamadas usarem exatamente a mesma conta, o
+ * que é o que garante que a mistura do threshold nunca mostra uma borda
+ * desalinhada entre a proteção da média e a do campo.
+ */
+export function rectToSafeUniforms(
+  rect: SafeAreaRect,
+  widthPx: number,
+  heightPx: number,
+): { center: Vector2; half: Vector2 } {
+  const centerX = ((rect.left + rect.width / 2) / widthPx) * 2 - 1;
+  const centerY = 1 - ((rect.top + rect.height / 2) / heightPx) * 2;
+  return {
+    center: new Vector2(centerX, centerY),
+    half: new Vector2(
+      rect.width / widthPx + SAFE_MARGIN_NDC,
+      rect.height / heightPx + SAFE_MARGIN_NDC,
+    ),
+  };
+}
 
 // ---------------------------------------------------------------------------
 
@@ -138,8 +167,20 @@ export interface FieldScene extends Layer {
    * segundo, denunciando que a cena acabou de nascer.
    */
   snapToPointer(pointer: Pointer): void;
-  /** Retângulo do texto HTML, em px CSS relativos à viewport. `null` desliga a reserva. */
-  setSafeArea(rect: SafeAreaRect | null, widthPx: number, heightPx: number): void;
+  /**
+   * Retângulo(s) do texto HTML, em px CSS relativos à viewport. `null` desliga a
+   * reserva correspondente. `rect2` é a segunda região protegida — hoje, a
+   * mensagem de revelação do hero, que em telas largas sai do bloco e vira o
+   * seu próprio retângulo (ver `applySafeArea` em `hero/index.ts`). Opcional e
+   * `null` por padrão: quem chama sem ela continua protegendo só uma região,
+   * exatamente como antes desta segunda área existir.
+   */
+  setSafeArea(
+    rect: SafeAreaRect | null,
+    widthPx: number,
+    heightPx: number,
+    rect2?: SafeAreaRect | null,
+  ): void;
   setDirectToScreen(direct: boolean): void;
   dispose(): void;
 }
@@ -170,6 +211,8 @@ export function createFieldScene(tier: Tier, animated: boolean): FieldScene {
     uFilingSize: { value: new Vector2(0.02, 0.004) },
     uSafeCenter: { value: SAFE_CENTER_OFFSCREEN.clone() },
     uSafeHalf: { value: new Vector2(0, 0) },
+    uSafeCenter2: { value: SAFE_CENTER_OFFSCREEN.clone() },
+    uSafeHalf2: { value: new Vector2(0, 0) },
     uSafeFeather: { value: SAFE_FEATHER_NDC },
     uDirectToScreen: { value: 1 },
   };
@@ -314,21 +357,30 @@ export function createFieldScene(tier: Tier, animated: boolean): FieldScene {
       );
     },
 
-    setSafeArea(rect: SafeAreaRect | null, widthPx: number, heightPx: number): void {
-      if (rect === null || widthPx <= 0 || heightPx <= 0) {
+    setSafeArea(
+      rect: SafeAreaRect | null,
+      widthPx: number,
+      heightPx: number,
+      rect2: SafeAreaRect | null = null,
+    ): void {
+      const validSize = widthPx > 0 && heightPx > 0;
+      if (rect === null || !validSize) {
         fieldUniforms.uSafeCenter.value.copy(SAFE_CENTER_OFFSCREEN);
         fieldUniforms.uSafeHalf.value.set(0, 0);
-        return;
+      } else {
+        const { center, half } = rectToSafeUniforms(rect, widthPx, heightPx);
+        fieldUniforms.uSafeCenter.value.copy(center);
+        fieldUniforms.uSafeHalf.value.copy(half);
       }
-      const centerX = ((rect.left + rect.width / 2) / widthPx) * 2 - 1;
-      const centerY = 1 - ((rect.top + rect.height / 2) / heightPx) * 2;
-      fieldUniforms.uSafeCenter.value.set(centerX, centerY);
-      // Meia-extensão em NDC: o eixo inteiro vale 2, então a metade do retângulo
-      // normalizado já é a meia-extensão.
-      fieldUniforms.uSafeHalf.value.set(
-        rect.width / widthPx + SAFE_MARGIN_NDC,
-        rect.height / heightPx + SAFE_MARGIN_NDC,
-      );
+
+      if (rect2 === null || rect2 === undefined || !validSize) {
+        fieldUniforms.uSafeCenter2.value.copy(SAFE_CENTER_OFFSCREEN);
+        fieldUniforms.uSafeHalf2.value.set(0, 0);
+      } else {
+        const { center, half } = rectToSafeUniforms(rect2, widthPx, heightPx);
+        fieldUniforms.uSafeCenter2.value.copy(center);
+        fieldUniforms.uSafeHalf2.value.copy(half);
+      }
     },
 
     setDirectToScreen(direct: boolean): void {

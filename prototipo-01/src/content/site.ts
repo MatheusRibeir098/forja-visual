@@ -7,6 +7,16 @@ interface Site {
   sections: readonly Section[]
   /** Critério de sucesso, nas palavras do dono do projeto. */
   sucesso: string
+  /**
+   * Mensagem que revela a brincadeira do hero, mostrada uma única vez logo
+   * depois que a limalha termina de comer a caricatura de "site médio gerado
+   * por IA". `headline` é a linha de impacto; `body` é a explicação, em corpo
+   * menor.
+   */
+  heroReveal: {
+    headline: string
+    body: string
+  }
   year: number
 }
 
@@ -26,5 +36,9 @@ export const site: Site = {
     { id: 'medicao', label: 'Medição' },
   ],
   sucesso: 'Um site gerado pela ferramenta tem que passar por trabalho de um estúdio, não por template.',
+  heroReveal: {
+    headline: 'Por meio segundo, você achou que era mais um.',
+    body: 'O gradiente roxo, os cards de vidro, os dois botões — é assim que quase todo site gerado por IA se parece hoje. Não por incapacidade da máquina: ela entrega a média de tudo que viu, e a média é, por definição, a opção menos distintiva. Daqui pra baixo é o oposto disso.',
+  },
   year: 2026,
 }

@@ -28,12 +28,18 @@ import './style.css';
  * lugar certo enquanto o espécime viaja em z ao atravessar a tela.
  *
  * ── COMO ESTA SEÇÃO CONVIVE COM AS OUTRAS NO MESMO CANVAS ──────────────────
- * O canvas é um só, fixo atrás do documento, e cada seção desenha no **seu**
- * retângulo: `scissor` no retângulo da seção (é ele que também limita o clear) e
- * `viewport` na faixa livre entre as duas barras de texto. Como as seções são
- * blocos empilhados, os retângulos são disjuntos por construção — duas seções
- * visíveis ao mesmo tempo não se apagam. No fim do quadro o viewport volta para
- * o canvas inteiro, para não sabotar quem desenha depois sem definir o seu.
+ * O canvas é um só, fixo atrás do documento — mas ninguém escreve nele direto:
+ * toda seção escreve no FBO de página (`gl.frame.target`, `engine/frame.ts`),
+ * que `main.ts` compõe na tela uma vez só, no fim do quadro (curva fílmica,
+ * bloom, vinheta, grão, dither). Cada seção continua desenhando no **seu**
+ * retângulo desse FBO: `scissor` no retângulo da seção (é ele que também
+ * limita o clear) e `viewport` na faixa livre entre as duas barras de texto.
+ * `setScissor`/`setViewport` do renderer continuam certos aqui: esta seção
+ * nunca troca de render target, então o recorte solto do renderer não é
+ * pisado por ninguém. Como as seções são blocos empilhados, os retângulos são
+ * disjuntos por construção — duas seções visíveis ao mesmo tempo não se
+ * apagam. No fim do quadro o viewport volta para o FBO inteiro, para não
+ * sabotar quem desenha depois sem definir o seu.
  *
  * ── POR QUE NÃO HÁ UM ÚNICO `getBoundingClientRect` AQUI ───────────────────
  * O retângulo da seção é **derivado** do progresso do beat (que o `beats.ts`

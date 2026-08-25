@@ -23,30 +23,55 @@ import type { Engine } from '@/engine';
  *
  * ══ A REGRA DO CANVAS ══════════════════════════════════════════════════════
  *
- * O canvas é **um só**, `position: fixed`, atrás do documento inteiro, e é
- * criado sem alpha (`engine/gl.ts`). Disso saem três regras que **toda** seção
- * que desenha precisa obedecer — elas não são estilo, são o contrato que
- * impede as seções de se apagarem:
+ * O canvas é **um só**, `position: fixed`, atrás do documento inteiro, criado
+ * sem alpha (`engine/gl.ts`) — mas nenhuma seção escreve nele diretamente.
+ * Toda seção escreve num **FBO de página** (`engine.gl.frame.target`,
+ * `engine/frame.ts`), do tamanho exato do canvas; só o **passe de grade**, no
+ * fim de cada quadro, lê esse FBO e desenha no backbuffer de verdade. É a
+ * diferença entre "cinco janelinhas de WebGL coladas lado a lado" e uma
+ * imagem: a montagem inteira passa a existir como um quadro só antes de
+ * qualquer curva, bloom, vinheta, grão ou dither tocá-la — e esses cinco
+ * efeitos, por sua vez, veem a página inteira, nunca o retângulo de uma
+ * seção.
  *
- *  1. **Não existe clear global.** Ninguém limpa o canvas inteiro, nunca. Um
- *     clear global aqui significaria ou dois renders por quadro, ou "quem
- *     desenha por último vence" — que é o mesmo bug com dois sintomas.
+ * Isso muda **quem chama o quê**, não o resto do contrato por retângulo, que
+ * segue valendo dentro do FBO:
  *
- *  2. **Toda seção que desenha usa `scissor` no próprio retângulo.** O clear do
- *     `autoClear` respeita o scissor, então cada seção limpa e pinta só o seu
- *     pedaço. Como as seções são blocos empilhados, os retângulos são disjuntos
- *     por construção e a ordem de montagem deixa de importar.
+ *  1. **Não existe clear global por seção.** A única exceção do projeto inteiro
+ *     é `frame.beginFrame()`, chamado uma vez, aqui, **antes** de qualquer
+ *     seção — ele substitui o clear implícito que o backbuffer fazia de graça
+ *     a cada quadro (o FBO, ao contrário do canvas, persiste entre quadros: se
+ *     ninguém o limpasse, sobraria lixo do quadro anterior nas regiões que
+ *     nenhuma seção visível cobre). Fora dessa exceção, nenhuma seção limpa
+ *     mais que o próprio retângulo — um clear ali dentro seria ou dois renders
+ *     por quadro, ou "quem desenha por último vence".
+ *
+ *  2. **Toda seção que desenha recorta o próprio retângulo dentro do FBO.**
+ *     `campo`, `relevo` e `catalogo/planes` continuam usando
+ *     `renderer.setScissor()` — nunca trocam de render target sozinhas, então
+ *     o recorte solto do renderer não é pisado por ninguém. `hero` e a F2 (que
+ *     passam por `composite.ts`, e portanto trocam de render target por baixo
+ *     dos panos) usam `gl.frame.setScissorCss()`, que grava o recorte no
+ *     próprio `WebGLRenderTarget` — o único jeito de um scissor sobreviver a
+ *     uma troca de alvo no meio do quadro. Como as seções são blocos
+ *     empilhados, os retângulos são disjuntos por construção e a ordem de
+ *     montagem deixa de importar.
  *
  *  3. **Quem mexe no estado do renderer devolve como encontrou**:
  *     `clearColor`, `autoClear`, `scissorTest` e `viewport`. O estado do
  *     renderer é global; sem a devolução, a seção seguinte herda o recorte da
  *     anterior e desenha no lugar errado.
  *
- * O corolário de (1): **região que ninguém desenha fica preta**, porque o
- * contexto é opaco. Quem não desenha WebGL nenhum (referência, princípios,
- * medição) é opaco no CSS e serve de fundo do próprio pedaço — ver a regra
- * "quem não desenha é opaco" em `styles/base.css`. Entre as duas coisas, cada
- * pixel da página tem exatamente um dono.
+ *  4. **O passe de grade é a última inscrição no ticker.** `subscribers` é um
+ *     `Set` (`engine/ticker.ts`), que itera na ordem de inserção — registrar
+ *     `frame.present()` depois de montar as sete seções garante que ele rode
+ *     por último em todo quadro, com a página inteira já desenhada no FBO.
+ *
+ * O corolário de (1): **região que ninguém desenha fica preta**, porque o FBO
+ * nasce limpo em `beginFrame()` e o contexto é opaco. Quem não desenha WebGL
+ * nenhum (referência, princípios, medição) é opaco no CSS e serve de fundo do
+ * próprio pedaço — ver a regra "quem não desenha é opaco" em `styles/base.css`.
+ * Entre as duas coisas, cada pixel da página tem exatamente um dono.
  *
  * ══ ESTADO GLOBAL DE CÂMERA ════════════════════════════════════════════════
  *
@@ -60,10 +85,14 @@ import type { Engine } from '@/engine';
  * ══ TIER E REDUCED-MOTION ══════════════════════════════════════════════════
  *
  * Nenhum dos dois é um `if` no fim do arquivo. O tier chega às seções como
- * **números** (dpr, escala de FBO, passos do ray march — `engine/tier.ts`) e
- * `prefers-reduced-motion` troca o **frameloop** para `demand` dentro de
- * `createEngine`: o quadro passa a ser pedido, não contínuo. Aqui os dois só
- * são publicados no `<html>`, para o CSS e para a seção de medição os lerem.
+ * **números** (dpr, escala de FBO, passos do ray march, níveis de bloom do
+ * passe de grade — `engine/tier.ts`) e `prefers-reduced-motion` troca o
+ * **frameloop** para `demand` dentro de `createEngine`: o quadro passa a ser
+ * pedido, não contínuo. O grão do passe de grade lê o mesmo booleano para
+ * decidir se anima (`frame.present`, abaixo) — é a mesma regra de qualquer
+ * outra animação automática do projeto, só que aplicada ao pós-processamento
+ * em vez de a uma cena. Aqui os dois só são publicados no `<html>`, para o CSS
+ * e para a seção de medição os lerem.
  */
 
 /** Assinatura única de seção. O retorno (handle ou `void`) não interessa ao boot. */
@@ -132,13 +161,23 @@ function boot(): void {
     return;
   }
 
-  const { tier, reducedMotion } = engine.gl;
+  const { tier, reducedMotion, frame } = engine.gl;
   // Publicados no `<html>` para o CSS e para F7 lerem o mesmo valor que o
   // renderer está usando — nunca uma segunda detecção, que poderia divergir.
   document.documentElement.dataset['tier'] = tier;
   document.documentElement.dataset['motion'] = reducedMotion ? 'reduced' : 'full';
 
+  // Primeira inscrição do quadro: liga o FBO de página e o limpa, antes que
+  // qualquer seção tenha a chance de desenhar (regra 1 da "REGRA DO CANVAS").
+  engine.ticker.subscribe(() => frame.beginFrame());
+
   for (const [id, mount] of MOUNTS) mount(findSection(id), engine);
+
+  // Última inscrição: `ticker.subscribers` é um `Set`, iterado na ordem de
+  // inserção, então isto só pode rodar depois que a última seção montada já
+  // se inscreveu (regra 4). É aqui, e só aqui, que o backbuffer de verdade é
+  // escrito.
+  engine.ticker.subscribe((_dt, elapsed) => frame.present(elapsed, !reducedMotion));
 }
 
 boot();

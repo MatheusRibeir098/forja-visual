@@ -1,17 +1,20 @@
 /*
- * Design tokens — placeholder stage.
+ * Design tokens — committed palette.
  *
- * Colour here is deliberately neutral: the visual direction is decided by the
- * divergence round (spec §3.1), so committing to a palette now would be the
- * "average by anticipation" this project exists to avoid.
- * Only --bg / --fg / --accent are consumed downstream; sections must not
- * hardcode colour values.
+ * The divergence round (spec §3.1) resolved to the dark variant: every WebGL
+ * section (hero, tese, campo, relevo) renders its own near-black plate,
+ * hardcoded outside these tokens on purpose. The four editorial-paper
+ * sections (referencia, catalogo, principios, medicao) used to default to a
+ * light palette here, which meant the site swapped luminosity five times on
+ * one scroll. There is one atmosphere now: grafite. `--bg` / `--fg` /
+ * `--accent` / `--muted` / `--rule` are the single light source of truth for
+ * every non-WebGL section — sections must not hardcode colour values.
  *
  * Fluid steps use clamp() interpolated between 375px and 1440px viewports.
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
   /* --- Type scale (ratio 1.2 @375px -> 1.333 @1440px) --- */
   --step--1: clamp(0.833rem, 0.796rem + 0.16vw, 0.938rem);
@@ -59,29 +62,17 @@
   --dur-fast: 150ms;
   --dur-base: 220ms;
 
-  /* --- Colour: neutral placeholder, light default --- */
-  --bg: #f6f5f3;
-  --fg: #121212;
-  --accent: #5a5a5a;
-  --muted: #4a4a4a;
-  --rule: #d2d0cc;
-  --selection-bg: #121212;
-  --selection-fg: #f6f5f3;
+  /* --- Colour: grafite, the one atmosphere --- */
+  --bg: #101010;
+  --fg: #f0efec;
+  --accent: #a8a8a8;
+  --muted: #bcbab6;
+  --rule: #333230;
+  --selection-bg: #f0efec;
+  --selection-fg: #101010;
 
   /* --- Z stack --- */
   --z-canvas: -1;
   --z-content: 0;
   --z-overlay: 10;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101010;
-    --fg: #f0efec;
-    --accent: #a8a8a8;
-    --muted: #bcbab6;
-    --rule: #333230;
-    --selection-bg: #f0efec;
-    --selection-fg: #101010;
-  }
 }

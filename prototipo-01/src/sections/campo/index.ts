@@ -32,9 +32,15 @@ import './style.css';
  *
  * ## Como a seção divide o canvas com as outras
  *
- * O canvas é um só, fixo atrás do documento inteiro. Esta seção desenha apenas
- * dentro do retângulo do próprio palco, via `setScissor`, e devolve o estado do
- * renderer ao sair — o mesmo contrato que as outras seções seguem.
+ * O canvas é um só, fixo atrás do documento inteiro — mas quem desenha não
+ * escreve nele direto: escreve no FBO de página (`gl.frame.target`,
+ * `engine/frame.ts`), que `main.ts` compõe na tela uma vez só, no fim do
+ * quadro. Esta seção desenha apenas dentro do retângulo do próprio palco, via
+ * `setScissor`, e devolve o estado do renderer ao sair — o mesmo contrato que
+ * as outras seções seguem. `setScissor` continua certo aqui (ao contrário do
+ * hero e da F2): esta seção nunca troca de render target, então o recorte
+ * solto do renderer não é pisado por ninguém — o FBO já está ligado quando
+ * este `draw()` roda.
  */
 
 const POINTS_URL = '/points/skull-points.bin';
@@ -63,11 +69,21 @@ const BASE_YAW = -0.62;
 /**
  * Voltas que o scroll dá no objeto ao longo da janela presa.
  *
- * 0,55 leva do três quartos frontal ao três quartos de trás, passando pelo
- * perfil — o percurso em que cada pose ainda diz algo novo. Uma volta inteira
- * repetiria a pose inicial no fim e faria o gesto parecer um carrossel.
+ * 1 volta inteira, de propósito (pedido do dono): o crânio sai do três quartos
+ * de repouso, passa pelo perfil, pelas costas, pelo perfil oposto e volta a
+ * encarar o visitante exatamente na pose em que começou. É a periodicidade de
+ * `rotation.y` (2π ≡ 0 rad) que fecha o giro sem salto — `BASE_YAW + 1·TAU` é
+ * o mesmo ângulo visual que `BASE_YAW`, então o quadro final é indistinguível
+ * do primeiro sem precisar de nenhum caso especial no fecho.
+ *
+ * O enquadramento não muda: `scene.frame` mede pela esfera envolvente (ver
+ * `scene.ts`), que por construção já era independente de pose — a volta
+ * completa só visita ângulos que a conta já cobria. O prepass também não muda:
+ * `measureOcclusion` em `scripts/build-points.ts` já varre os 24 passos por
+ * um círculo de 2π inteiro, não pela janela de scroll, então a taxa de
+ * descarte medida (53,7% média, 51,0–56,5%) já era a do percurso completo.
  */
-const SCROLL_TURNS = 0.55;
+const SCROLL_TURNS = 1;
 
 /**
  * Damping do giro, em radianos.

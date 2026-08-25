@@ -33,7 +33,10 @@ import { POINTER_RAY_GLSL } from '@/engine';
  * - `uFilingSize`      comprimento e espessura da limalha, em unidades de mundo
  * - `uSafeCenter`      centro da área reservada ao texto HTML, em NDC
  * - `uSafeHalf`        meia-extensão dessa área, em NDC
- * - `uSafeFeather`     largura da queda suave em volta dela, em NDC
+ * - `uSafeCenter2`     centro de uma segunda área reservada (opcional — ver
+ *                       `uSafeHalf2`), em NDC
+ * - `uSafeHalf2`        meia-extensão da segunda área; `(0,0)` a desliga
+ * - `uSafeFeather`     largura da queda suave em volta das duas áreas, em NDC
  * - `uDirectToScreen`  1 = a cena vai direto para a tela e sai em sRGB
  */
 export const fieldVertex: string = /* glsl */ `
@@ -48,6 +51,8 @@ uniform vec2 uExtent;
 uniform vec2 uFilingSize;
 uniform vec2 uSafeCenter;
 uniform vec2 uSafeHalf;
+uniform vec2 uSafeCenter2;
+uniform vec2 uSafeHalf2;
 uniform float uSafeFeather;
 
 in vec3 position;   // canto do quad unitário, x/y em [-0.5, 0.5]
@@ -141,6 +146,29 @@ vec2 poleField(vec2 p, vec2 center, float strength) {
   return strength * delta / radiusSq;
 }
 
+/** Distância (com sinal) de 'ndc' à caixa arredondada 'center'±'half', em NDC. */
+float safeBoxDistance(vec2 ndc, vec2 center, vec2 half_) {
+  vec2 relative = abs(ndc - center) - half_;
+  return length(max(relative, vec2(0.0))) + min(max(relative.x, relative.y), 0.0);
+}
+
+/**
+ * Atenuação combinada das (até) duas áreas seguras. 'uSafeHalf2' em '(0,0)'
+ * deixa a segunda caixa com meia-extensão nula — 'safeBoxDistance' então só
+ * pode devolver um valor grande e positivo (a menos que 'uSafeCenter2' também
+ * esteja em cima do pixel, caso degenerado que não ocorre: o centro nasce
+ * fora da tela). O 'min' entre as duas atenuações escurece o pixel se ele
+ * cair dentro de qualquer uma das duas regiões — é a mesma lógica de "a mais
+ * protetora vence" que faria sentido com N áreas.
+ */
+float safeAreaAttenuation(vec2 ndc, float floorValue) {
+  float d1 = safeBoxDistance(ndc, uSafeCenter, uSafeHalf);
+  float d2 = safeBoxDistance(ndc, uSafeCenter2, uSafeHalf2);
+  float a1 = mix(floorValue, 1.0, smoothstep(0.0, uSafeFeather, d1));
+  float a2 = mix(floorValue, 1.0, smoothstep(0.0, uSafeFeather, d2));
+  return min(a1, a2);
+}
+
 void main() {
   vec4 mv = modelViewMatrix * vec4(aOffset, 1.0);
 
@@ -189,9 +217,7 @@ void main() {
 
   vec4 clipCenter = projectionMatrix * mv;
   vec2 ndc = clipCenter.xy / max(clipCenter.w, MIN_DEPTH);
-  vec2 relative = abs(ndc - uSafeCenter) - uSafeHalf;
-  float safeDistance = length(max(relative, vec2(0.0))) + min(max(relative.x, relative.y), 0.0);
-  float attenuation = mix(SAFE_AREA_FLOOR, 1.0, smoothstep(0.0, uSafeFeather, safeDistance));
+  float attenuation = safeAreaAttenuation(ndc, SAFE_AREA_FLOOR);
 
   float sheen = mix(SHEEN_FLOOR, 1.0, pow(abs(dot(direction, LIGHT_DIR)), SHEEN_EXPONENT));
   float variation = mix(SEED_BRIGHTNESS_MIN, SEED_BRIGHTNESS_MAX, aParams.x);

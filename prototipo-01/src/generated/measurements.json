@@ -1,66 +1,80 @@
 {
   "bundle": {
-    "criticalKb": 2.96,
+    "criticalKb": 177.89,
     "criticalFiles": [
       {
-        "file": "assets/index-BRA6aA0E.css",
-        "kb": 1.75
+        "file": "assets/three-L_VhMvir.js",
+        "kb": 124.49
+      },
+      {
+        "file": "assets/index-DbLnebdP.js",
+        "kb": 44.92
+      },
+      {
+        "file": "assets/index-CS3lsPZq.css",
+        "kb": 5.65
       },
       {
         "file": "index.html",
-        "kb": 0.81
-      },
-      {
-        "file": "assets/index-C6l0cwBv.js",
-        "kb": 0.4
+        "kb": 2.83
       }
     ],
     "fontsKb": 49.97,
-    "lazyKb": 305.22,
-    "totalKb": 358.15,
-    "measuredAt": "2026-08-24T17:10:08.552Z"
+    "lazyKb": 2043.02,
+    "totalKb": 2270.88,
+    "measuredAt": "2026-08-25T13:52:20.600Z"
   },
   "contrast": {
-    "minContrast": 17.19,
+    "minContrast": 7.93,
     "worst": {
-      "selector": "h1#hero-title.t-display",
-      "text": "Forja Visual",
-      "ratio": 17.19,
+      "selector": "p.relevo__limit",
+      "text": "Quando um elemento precisa pro",
+      "ratio": 7.93,
       "screenshotClip": {
-        "x": 358,
-        "y": 293,
-        "width": 564,
-        "height": 134
+        "x": 749,
+        "y": 312,
+        "width": 454,
+        "height": 96
       }
     },
-    "measured": 7,
-    "measuredAt": "2026-08-24T17:09:42.674Z"
+    "measured": 133,
+    "measuredAt": "2026-08-25T13:52:34.563Z"
   },
   "fps": {
     "fpsMedian": 59.88,
-    "fpsP5": 59.88,
+    "fpsP5": 29.94,
     "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics (RPL-U), OpenGL ES 3.2)",
     "tier": "high",
     "durationS": 5,
     "viewport": "1280x720@2x",
-    "measuredAt": "2026-08-24T17:09:50.352Z"
+    "measuredAt": "2026-08-25T13:52:42.471Z",
+    "gpuFrameMsMedian": 11.54,
+    "gpuFrameMsP95": 18.61,
+    "gpuHeadroomMs": -1.94,
+    "gpuDisjointSamples": 0,
+    "gpuTimerAvailable": true
   },
   "fpsLow": {
     "fpsMedian": 59.88,
-    "fpsP5": 59.52,
+    "fpsP5": 59.88,
     "renderer": "ANGLE (Intel, Mesa Intel(R) Graphics (RPL-U), OpenGL ES 3.2)",
     "tier": "low",
     "durationS": 5,
     "viewport": "375x667@1x",
-    "measuredAt": "2026-08-24T17:09:55.981Z"
+    "measuredAt": "2026-08-25T13:52:48.577Z",
+    "gpuFrameMsMedian": 13.64,
+    "gpuFrameMsP95": 15.58,
+    "gpuHeadroomMs": 1.09,
+    "gpuDisjointSamples": 0,
+    "gpuTimerAvailable": true
   },
   "relief": {
-    "albedoKb": 5.6,
-    "depthKb": 250.26,
+    "albedoKb": 19.1,
+    "depthKb": 1365.63,
     "grainKb": 54.67,
-    "previewKb": 1.7,
-    "width": 1280,
-    "height": 720,
-    "measuredAt": "2026-08-24T17:21:18.812Z"
+    "previewKb": 4.59,
+    "width": 3200,
+    "height": 1800,
+    "measuredAt": "2026-08-25T11:48:24.527Z"
   }
 }

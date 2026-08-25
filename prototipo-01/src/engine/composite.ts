@@ -30,11 +30,18 @@ import type { GL, GLSize } from './gl';
 
 /**
  * Composite rendering (catálogo I.1): duas cenas vão para render targets e um
- * quad de tela decide, pixel a pixel, qual das duas aparece.
+ * quad decide, pixel a pixel, qual das duas aparece.
  *
  * O catálogo também diz **quando não usar**: sem transição em curso, o segundo
  * render target e o quad final são custo puro. Por isso `render()` desvia para
- * um pass único, direto na tela, quando `progress` está em 0 ou 1.
+ * um pass único quando `progress` está em 0 ou 1.
+ *
+ * Nos dois casos, o destino final não é mais o backbuffer: é o FBO de página
+ * compartilhado (`gl.frame.target`, ver `engine/frame.ts`). O hero e a F2 são
+ * as únicas seções que passam por este módulo; as outras (`campo`, `relevo`,
+ * `catalogo/planes`) desenham direto nesse mesmo FBO sem nunca chamar
+ * `setRenderTarget` — confiam que ele já está ligado, e continua ligado
+ * depois que este módulo termina de desenhar.
  */
 
 export interface Layer {
@@ -356,7 +363,9 @@ export function createComposite(gl: GL): Composite {
   const stopResize = gl.onResize(resizeTargets);
   resizeTargets(gl.size);
 
-  function renderLayer(layer: Layer, target: WebGLRenderTarget | null): void {
+  // Nunca `null`: o backbuffer de verdade só é escrito pelo passe de grade
+  // final (`engine/frame.ts`), nunca por uma seção.
+  function renderLayer(layer: Layer, target: WebGLRenderTarget): void {
     renderer.setRenderTarget(target);
     renderer.render(layer.scene, layer.camera);
   }
@@ -371,7 +380,9 @@ export function createComposite(gl: GL): Composite {
     uniforms.uTexB.value = targetB.texture;
     uniforms.uProgress.value = progress;
 
-    renderer.setRenderTarget(null);
+    // O FBO de página (`engine/frame.ts`), não o backbuffer: toda seção
+    // escreve nele, e só o passe de grade final lê o backbuffer de verdade.
+    renderer.setRenderTarget(gl.frame.target);
     renderer.render(quadScene, quadCamera);
   }
 
@@ -395,14 +406,15 @@ export function createComposite(gl: GL): Composite {
 
     render(): void {
       if (layerA === null || layerB === null) return;
-      // Sem transição: um pass, direto na tela. É o "quando não usar" do I.1 —
-      // dois render targets e um quad para exibir uma cena só é custo puro.
+      // Sem transição: um pass, direto no FBO de página. É o "quando não
+      // usar" do I.1 — dois render targets e um quad para exibir uma cena só
+      // é custo puro.
       if (progress <= 0) {
-        renderLayer(layerA, null);
+        renderLayer(layerA, gl.frame.target);
         return;
       }
       if (progress >= 1) {
-        renderLayer(layerB, null);
+        renderLayer(layerB, gl.frame.target);
         return;
       }
       renderComposed(layerA, layerB);

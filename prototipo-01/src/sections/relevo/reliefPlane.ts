@@ -58,8 +58,8 @@ export const BACKGROUND_HEX = '#0b0b0d';
 /** Altura da chapa em unidades de mundo. 1 mantém os números longe de precisão. */
 const PLATE_WORLD_HEIGHT = 1;
 
-/** Aspecto do asset (1280×720, ver README do relevo) até o depth carregar. */
-const ASSET_ASPECT = 1280 / 720;
+/** Aspecto do asset (3200×1800, ver README do relevo) até o depth carregar. */
+const ASSET_ASPECT = 3200 / 1800;
 
 /**
  * Fração da faixa livre que a chapa ocupa no ponto mais **perto** (seção

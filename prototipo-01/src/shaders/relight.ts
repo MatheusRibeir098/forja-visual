@@ -7,7 +7,7 @@ import type { Texture } from 'three';
  * IV.1 — **Relighting por depth map**.
  *
  * Um plano chato ganha volume porque a luz não é aplicada à geometria, e sim ao
- * *campo de altura* que a textura carrega. Três peças, nesta ordem:
+ * *campo de altura* que a textura carrega. Quatro peças, nesta ordem:
  *
  * 1. **Altura** — 16 bits empacotados em R (byte alto) + G (byte baixo) do
  *    `forja-depth.png`, mais o grão somado por cima (tile separado, regra VI.5).
@@ -15,7 +15,13 @@ import type { Texture } from 'three';
  *    `normalize(vec3(-dH/dx, -dH/dy, 1))`. Nenhum vértice sabe do relevo; só o
  *    fragmento sabe. É isto que faz a face virada para a luz clarear e a oposta
  *    escurecer.
- * 3. **Sombra por ray march** — de cada pixel, caminha em direção à luz
+ * 3. **Truque extra — sulcos pintados pelo albedo** — o desgaste e o arranhado
+ *    do bisel só existem no *albedo* (`WEAR_OCTAVES`/`BEVEL_SCRATCH_GAIN` em
+ *    `build-relief.ts`), não na geometria do depth. O gradiente do *brilho* do
+ *    albedo é extraído do mesmo jeito que o da altura e fundido na normal antes
+ *    de normalizar — a luz rasante acende e apaga microrrelevo que nenhum
+ *    height map carrega. Ver `DEFAULT_ALBEDO_RELIEF_STRENGTH`.
+ * 4. **Sombra por ray march** — de cada pixel, caminha em direção à luz
  *    comparando a altura amostrada com a elevação do próprio raio. `uSamples`
  *    vem cru do tier (8/4/0 em `engine/tier.ts`, com a medição registrada lá);
  *    em 0 o shader continua rodando, só sem a sombra projetada (regra do
@@ -70,6 +76,11 @@ export type RelightUniforms = {
   uGrainTiles: { value: number };
   /** Amplitude do grão, em unidades do depth normalizado. */
   uGrainAmplitude: { value: number };
+  /**
+   * Ganho do sulco pintado: gradiente do brilho do albedo somado à normal — o
+   * "truque extra" da técnica IV.1. Ver `DEFAULT_ALBEDO_RELIEF_STRENGTH`.
+   */
+  uAlbedoReliefStrength: { value: number };
   /** Unidades de campo por unidade do depth normalizado. */
   uHeightScale: { value: number };
   /** Altura normalizada da superfície intocada da chapa (0.5 neste asset). */
@@ -136,6 +147,21 @@ export const DEFAULT_PLATE_HEIGHT = 0.5;
  * bisel, que é o assunto, dominar a leitura.
  */
 export const DEFAULT_GRAIN_AMPLITUDE = 0.009;
+
+/**
+ * Ganho do sulco pintado (gradiente do brilho do albedo somado à normal — ver o
+ * shader, seção "truque extra" da IV.1).
+ *
+ * Medido no asset real (`public/relief/forja-albedo.webp`, 3200×1800): amostrando
+ * o brilho a 8 texels de distância em 20 mil pontos de chapa lisa (fora da
+ * palavra), o gradiente bruto tem mediana 0.030, p95 0.080 e máximo 0.094. Com
+ * 1.5, o p95 chega a ~0.13 em `normal.xy` (~7°) — a mesma ordem do `~9°` que
+ * `DEFAULT_GRAIN_AMPLITUDE` mira, então os dois "truques extra" leem como a
+ * mesma família de efeito. A média fica em ~0.04 (~2.5°): a chapa lisa ganha uma
+ * variação sutil e constante, e só perto do bisel (onde `BEVEL_SCRATCH_GAIN`
+ * concentra o arranhado no albedo) o efeito sobe mais.
+ */
+export const DEFAULT_ALBEDO_RELIEF_STRENGTH = 1.5;
 
 /**
  * Tiles de grão por unidade de campo (= por altura da chapa). Com 4, cada tile
@@ -273,6 +299,7 @@ export function createRelightUniforms(): RelightUniforms {
     uFieldAspect: { value: 1 },
     uGrainTiles: { value: DEFAULT_GRAIN_TILES },
     uGrainAmplitude: { value: DEFAULT_GRAIN_AMPLITUDE },
+    uAlbedoReliefStrength: { value: DEFAULT_ALBEDO_RELIEF_STRENGTH },
     uHeightScale: { value: DEFAULT_HEIGHT_SCALE },
     uPlateHeight: { value: DEFAULT_PLATE_HEIGHT },
     uAlbedoGain: { value: DEFAULT_ALBEDO_GAIN },
@@ -340,6 +367,7 @@ uniform vec2 uUvOffset;
 uniform float uFieldAspect;
 uniform float uGrainTiles;
 uniform float uGrainAmplitude;
+uniform float uAlbedoReliefStrength;
 uniform float uHeightScale;
 uniform float uPlateHeight;
 uniform float uAlbedoGain;
@@ -362,6 +390,9 @@ uniform float uShadowStrength;
 
 ${POINTER_RAY_GLSL}
 ${LINEAR_TO_SRGB}
+
+/** Pesos Rec.709 para luminância em espaço linear (o albedo já chega decodificado). */
+const vec3 LUMA_WEIGHTS = vec3(0.2126, 0.7152, 0.0722);
 
 /**
  * Altura da chapa em unidades de campo. O depth vem em 16 bits quebrados em
@@ -420,7 +451,8 @@ void main() {
   vec2 uv = (vUv - 0.5) * uUvScale + 0.5 + uUvOffset;
   vec2 field = uv * vec2(uFieldAspect, 1.0);
   // Texel medido em campo. Com a textura e o campo compartilhando o aspecto,
-  // ele é quadrado: 1.7778/1280 == 1/720.
+  // ele é quadrado: independe da resolução do asset (1.7778/3200 == 1/1800,
+  // e valia o mesmo em 1280x720 — é só o aspecto 16:9 se repetindo).
   vec2 texelField = uTexel * vec2(uFieldAspect, 1.0);
 
   float height = surfaceHeight(uv);
@@ -437,6 +469,28 @@ void main() {
     -(up - down) / (2.0 * texelField.y),
     1.0
   ));
+
+  // --- IV.1, truque extra: sulcos pintados a partir do brilho do albedo ---
+  // O desgaste e o arranhado do bisel (WEAR_OCTAVES/BEVEL_SCRATCH_GAIN em
+  // build-relief.ts) só existem no albedo — o depth não sabe deles. Extrai-se
+  // o gradiente do brilho do albedo do mesmo jeito que o da altura e funde-se
+  // os dois antes de normalizar: a luz rasante acende e apaga esses sulcos
+  // pintados junto com o bisel de verdade, mesmo sem geometria por trás.
+  // Amostrado a 8 texels de distância (não +-1): a variação de desgaste é lenta
+  // demais para o passo de 1 texel (a maioria dos vizinhos cai no mesmo byte de
+  // 8 bits), então um passo de 1 texel leria só ruído de quantização - degraus
+  // isolados em vez do relevo suave que o campo de origem de fato tem.
+  vec2 albedoStep = uTexel * 8.0;
+  float lumaLeft = dot(texture(uAlbedo, uv - vec2(albedoStep.x, 0.0)).rgb, LUMA_WEIGHTS);
+  float lumaRight = dot(texture(uAlbedo, uv + vec2(albedoStep.x, 0.0)).rgb, LUMA_WEIGHTS);
+  float lumaDown = dot(texture(uAlbedo, uv - vec2(0.0, albedoStep.y)).rgb, LUMA_WEIGHTS);
+  float lumaUp = dot(texture(uAlbedo, uv + vec2(0.0, albedoStep.y)).rgb, LUMA_WEIGHTS);
+  vec2 albedoStepField = albedoStep * vec2(uFieldAspect, 1.0);
+  vec2 albedoSlope = vec2(
+    -(lumaRight - lumaLeft) / (2.0 * albedoStepField.x),
+    -(lumaUp - lumaDown) / (2.0 * albedoStepField.y)
+  );
+  normal = normalize(vec3(normal.xy + albedoSlope * uAlbedoReliefStrength, normal.z));
 
   // --- V.4: a luz mora onde o raio do cursor cruza a chapa ---
   // pointerOffset devolve o vetor do raio até o fragmento **na profundidade do

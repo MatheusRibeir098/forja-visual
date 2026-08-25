@@ -169,6 +169,45 @@ Rascunho. Cinco fases, na ordem em que o valor aparece.
 As fases 4 e 5 **já existem** no Forge (`orchestrator`, `dev`, `tester`). O que falta construir é
 1, 2 e 3 — e a 3 depende do catálogo, que é o trabalho em andamento.
 
+## 5.1 A fase 1 é um **questionário de direção visual** (decidido pelo dono, 2026-08-25)
+
+Origem: o dono olhou o protótipo 01 pronto e disse — *"ficou bom, mas diferente do que eu estava
+pensando; achei que seria algo futurista como o portfolio-3d, esse ficou mais pé no chão. E
+realmente não parece IA."*
+
+Duas coisas nessa frase, e as duas importam:
+
+**(a) O critério de sucesso foi atingido.** "Não parece IA" é exatamente o que o §2 define como o
+problema a resolver. O protótipo prova que o método produz algo que não lê como gerado.
+
+**(b) E ainda assim o resultado não era o que ele queria.** Isso não é falha de execução — é falha
+de **entrada**. O protótipo saiu editorial, tipográfico, pé no chão, porque nada no processo
+perguntou se ele queria futurista. A divergência do P3 ofereceu três variantes, mas as três dentro
+da **mesma família visual**: a escolha foi entre sabores, não entre direções. Um site correto e
+bem medido no gosto errado continua sendo o gosto errado.
+
+**A especificação, então:** a fase 1 abre com uma **série de perguntas de direção visual**, antes
+de qualquer código, e é o gosto da pessoa que vira restrição de entrada. Eixos que o dono nomeou:
+
+- **tema / assunto** — do que o site trata
+- **paleta** — cores, ou a ausência delas
+- **temperatura de efeito** — muita animação e efeito × minimalista e contido
+- **3D sim ou não** — objetos tridimensionais entram ou o impacto vem de tipografia/layout/movimento
+- e o que mais se mostrar necessário: densidade, referências que a pessoa admira, o que ela odeia
+
+Isso responde à decisão em aberto #2 (*"extrair imagem de quem não é designer"*): **não se extrai
+por conversa aberta, extrai-se por escolha entre opções concretas.** Perguntar "que estética você
+quer?" a quem não é designer devolve silêncio ou "moderno". Perguntar "futurista ou pé no chão?",
+"muito efeito ou contido?", "com 3D ou sem?" devolve resposta utilizável.
+
+E ataca a decisão #1 (mecanizar a rejeição): as respostas do questionário são o que faz as N
+direções divergirem **de verdade**, em vez de virarem três sabores da média. A divergência passa a
+ser entre pontos distantes do espaço que a pessoa já delimitou.
+
+⚠️ Consequência para o P2: o orçamento (bytes, efeitos) deve ser **derivado dessas respostas**, não
+fixado antes delas. O L6 do protótipo 01 mostrou que teto arbitrário no início produz site que passa
+em todas as métricas e não impressiona — ver o registro da passada de excelência no `progress.md`.
+
 ---
 
 # 6. Formato: skill, MCP ou framework?
@@ -181,6 +220,33 @@ As fases 4 e 5 **já existem** no Forge (`orchestrator`, `dev`, `tester`). O que
 
 **Caminho:** duas skills primeiro — algo como `visual-concept` (fases 1–2) e `visual-techniques`
 (fase 3) — com o catálogo em markdown. Promover a MCP apenas o que exigir estado ou medição real.
+
+## 6.1 Distribuição: a ferramenta é um **plugin** (ideia, não decisão executada)
+
+Registrado em 2026-08-25. Este documento decidia *o formato* (skill / MCP / framework) mas assumia,
+sem dizer, que tudo rodaria dentro do Forge do autor. Isso não atende à intenção real: **qualquer
+pessoa deve conseguir usar, sem clonar este repositório e sem trabalhar dentro dele.**
+
+Hoje as skills vivem em `.claude/skills/` do `forge-claude` — para usar, o outro teria que clonar o
+repo e trabalhar lá dentro. Não serve.
+
+**A ideia:** empacotar como **plugin do Claude Code** (`.claude-plugin/`), instalável por marketplace.
+Mesmo conteúdo das skills, embalagem diferente — passa a existir em qualquer projeto de quem
+instalar, sem infraestrutura nenhuma.
+
+| Forma | Alcance | Custo |
+|---|---|---|
+| **Plugin do Claude Code** | qualquer usuário do Claude Code, em qualquer projeto | baixo — reorganizar o que já existe |
+| **MCP server** | qualquer cliente MCP (Claude Desktop, Cursor, Windsurf…) | médio — servidor rodando |
+| **CLI npm** | qualquer um, até sem IA — mas só a parte de medição | médio |
+
+**Ordem pretendida:** plugin primeiro (resolve o alcance a custo quase zero); MCP depois, e **só para
+os medidores** (contraste, FPS, bytes), que precisam de estado real — sobem um Chrome, medem,
+devolvem número. Isso é coerente com o veredito da tabela acima.
+
+⚠️ **Não construir agora.** A ordem inegociável do §8 continua valendo: provar antes de generalizar,
+e a embalagem é a última coisa a congelar. Isto fica registrado como intenção de destino, para que
+as skills nasçam já pensando em rodar fora daqui — não como tarefa aberta.
 
 ---
 
@@ -253,8 +319,7 @@ provada congela o erro.
 1. **Como mecanizar a rejeição (P3)?** É o fator mais importante e o menos óbvio. Gerar N variantes
    custa N vezes mais. Quantas? Como garantir que divergem de verdade em vez de serem três
    sabores da média?
-2. **Como extrair conceito visual?** O CPE extrai requisitos funcionais bem. Extrair *imagem* de
-   alguém que não é designer é outro problema.
+2. ~~**Como extrair conceito visual?**~~ **RESOLVIDO em 2026-08-25 pelo dono — ver §5.1.**
 3. **O catálogo é lido por quem?** Um agente consultando markdown, ou um índice estruturado com
    busca? Muda se vira MCP.
 4. **Escopo:** só sites com WebGL, ou também os que impressionam sem 3D nenhum (tipografia,

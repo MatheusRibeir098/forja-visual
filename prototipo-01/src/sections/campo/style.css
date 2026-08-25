@@ -21,12 +21,21 @@
     /* Um degrau acima do vazio: a coluna lê como chapa apoiada sobre a faixa,
        não como retângulo recortado dela. */
     --campo-plate: #101015;
-    /* 16,8:1 sobre a chapa — o texto de leitura. */
-    --campo-ink: #f2efe9;
-    /* 8,3:1 sobre a chapa: discreto por tamanho, nunca por contraste. */
-    --campo-ink-dim: #b0aca4;
-    /* 9,0:1. A mesma brasa da chapa do relevo, aqui só nos números medidos. */
-    --campo-ember: #ff9d5c;
+    /* Mesmo tom do --fg global: o crânio deixa de ser uma ilha de paleta
+       própria e passa a ler como a mesma tinta das seções de chapa. 16,5:1
+       sobre a chapa. */
+    --campo-ink: #f0efec;
+    /* Um degrau acima do --muted global — a mesma família neutra, clareada o
+       suficiente para o texto mono pequeno do rodapé de figuras (o pior caso
+       medido por pixel da seção). Escurecer por alpha faz a composição
+       convergir para a chapa e o contraste medido não sobe como o número
+       sugere — por isso é cor sólida, não véu. 10,9:1 na fórmula: folga
+       acima do piso de 7:1 para absorver o passe de pós-processamento
+       (grão, vinheta) que ainda vai rodar por cima. */
+    --campo-ink-dim: #c8c4bc;
+    /* Mesma brasa da chapa do relevo, um degrau mais clara para a mesma
+       folga: 10,8:1 sobre a chapa. */
+    --campo-ember: #ffb37a;
     /* Fio de junta. É régua, não texto: contraste baixo de propósito. */
     --campo-rule: #26262d;
 
@@ -39,6 +48,15 @@
      * recorte — `--campo-void` existe para os dois lados usarem o mesmo valor.
      */
     color: var(--campo-ink);
+  }
+
+  /*
+   * O fundo desta seção é sempre a chapa quase preta do WebGL, em qualquer
+   * tema. O anel de foco padrão usa `--fg`, que é escuro no tema claro —
+   * invisível sobre este fundo. Mesmo ajuste do `.tese-root` (F2).
+   */
+  .campo :focus-visible {
+    outline-color: var(--campo-ink);
   }
 
   /* O layout genérico centra e limita a largura dos filhos diretos da seção;

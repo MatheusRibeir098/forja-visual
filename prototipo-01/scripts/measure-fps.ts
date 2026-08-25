@@ -3,12 +3,19 @@
 // top of tsconfig.node.json — scoped here instead of widening the whole Node project.
 
 /**
- * Measures frame pacing during an automated scroll, on a real GPU.
+ * Measures frame pacing *and* GPU time per frame during an automated scroll, on a real GPU.
  *
  * The whole point of this script is the guard at the top: headless Chrome happily
  * renders through SwiftShader and reports a smooth-looking frame rate that has nothing
  * to do with what a user gets. If the renderer is software we exit 2 ("measurement
  * invalid") instead of exiting 0 with a comfortable lie.
+ *
+ * Frame pacing alone only tells you whether vsync was hit — it says nothing about how
+ * much of the 16.67ms budget a frame actually spends on the GPU. So this script also
+ * wraps each frame's draws in an `EXT_disjoint_timer_query_webgl2` query (begin/end,
+ * not the timestamp counter flavor — ANGLE's timestamp queries are the flaky ones) and
+ * reports GPU ms per frame, so a future post-processing pass knows how much headroom
+ * it is spending against.
  *
  *   pnpm tsx scripts/measure-fps.ts                  # tier high + tier low
  *   pnpm tsx scripts/measure-fps.ts --low            # only the mobile pass
@@ -32,6 +39,20 @@ const SAMPLE_DURATION_MS = 5_000;
  */
 const VSYNC_TOLERANCE_FPS = 1;
 const WARMUP_FRAMES = 5;
+
+/** What a vsync-locked 60Hz compositor budgets for a whole frame's GPU work. */
+const VSYNC_BUDGET_MS = 1000 / 60;
+
+/**
+ * How many `EXT_disjoint_timer_query_webgl2` queries can be in flight at once. A
+ * query's result is never ready in the same frame it was recorded — the GPU runs
+ * async relative to the JS thread — so one slot is not enough: while frame N's query
+ * is still waiting on the driver, frame N+1's query needs to already be open.
+ */
+const GPU_QUERY_RING_SIZE = 4;
+
+/** Extra rAF ticks kept alive after the sample window closes, to flush the last queries. */
+const GPU_QUERY_DRAIN_FRAMES = 12;
 
 interface PassConfig {
   readonly tier: string;
@@ -91,34 +112,141 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** Shape of `EXT_disjoint_timer_query_webgl2` — TypeScript's DOM lib does not know it. */
+interface DisjointTimerQueryExt {
+  readonly TIME_ELAPSED_EXT: number;
+  readonly GPU_DISJOINT_EXT: number;
+}
+
+interface FrameSampleOptions {
+  readonly durationMs: number;
+  readonly ringSize: number;
+  readonly drainFrames: number;
+}
+
+interface FrameSampleResult {
+  readonly timestamps: number[];
+  /** GPU ms per frame, already filtered of disjoint intervals. */
+  readonly gpuFrameMs: number[];
+  /** How many query intervals were thrown away because the driver reported disjoint. */
+  readonly gpuDisjointCount: number;
+  /** Whether the timer query extension existed on this canvas's WebGL2 context. */
+  readonly gpuTimerAvailable: boolean;
+}
+
 /**
- * Records one rAF timestamp per frame while scrolling ~1 viewport per second.
+ * Records one rAF timestamp per frame while scrolling ~1 viewport per second, and — when
+ * the extension is available — one GPU timer query per frame.
  *
- * Written as an await-loop with no named inner functions on purpose: tsx compiles with
- * esbuild's `keepNames`, and a named inner function would drag a `__name(...)` helper
- * into the source Playwright serializes into the page, where it does not exist.
+ * The app's own render loop (the site's single `requestAnimationFrame`) already ran by
+ * the time our `await` resolves each iteration: our callback was registered after the
+ * app's was already pending for the same frame, so it always runs later in that frame's
+ * callback batch. That ordering is exactly what makes `endQuery` right after `await`
+ * bracket *this* frame's draws, and the following `beginQuery` bracket the *next* one —
+ * no changes to the app's render loop needed, we just read the same WebGL2 context the
+ * app already created (`canvas.getContext('webgl2')` a second time returns the same
+ * context object, per spec).
+ *
+ * Written as a single loop with no named inner functions, on purpose: tsx compiles with
+ * esbuild's `keepNames`, and a named inner function/const-arrow would drag a `__name(...)`
+ * helper into the source Playwright serializes into the page, where it does not exist.
  */
-const collectFrameTimestamps = async (durationMs: number): Promise<number[]> => {
+const collectFrameSamples = async (options: FrameSampleOptions): Promise<FrameSampleResult> => {
+  const { durationMs, ringSize, drainFrames } = options;
+
   // The stylesheet asks for smooth scrolling; that would animate our scroll target and
   // measure the easing instead of the page. Force instant jumps for the run.
   const previousBehavior = document.documentElement.style.scrollBehavior;
   document.documentElement.style.scrollBehavior = 'auto';
 
   const timestamps: number[] = [];
+  const gpuFrameMs: number[] = [];
+  let gpuDisjointCount = 0;
+
+  const canvasEl = document.getElementById('gl');
+  const gl: WebGL2RenderingContext | null =
+    canvasEl instanceof HTMLCanvasElement ? canvasEl.getContext('webgl2') : null;
+  const ext: DisjointTimerQueryExt | null =
+    gl === null
+      ? null
+      : (gl.getExtension('EXT_disjoint_timer_query_webgl2') as DisjointTimerQueryExt | null);
+  const gpuTimerAvailable = gl !== null && ext !== null;
+
+  const queries: WebGLQuery[] =
+    gl !== null && gpuTimerAvailable ? Array.from({ length: ringSize }, () => gl.createQuery()) : [];
+  let writeIndex = 0;
+  let readIndex = 0;
+  let pendingCount = 0;
+  let hasOpenQuery = false;
+
   const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   const pixelsPerMs = window.innerHeight / 1000;
   const start = performance.now();
   let elapsed = 0;
+  let drainFramesLeft = drainFrames;
 
-  while (elapsed < durationMs) {
+  // Two phases sharing one rAF-driven loop: while `elapsed < durationMs` we scroll and
+  // record fps timestamps; once the window closes we keep ticking rAF for
+  // `drainFramesLeft` more frames purely so the last GPU queries can resolve.
+  while (elapsed < durationMs || drainFramesLeft > 0) {
+    const inSampleWindow = elapsed < durationMs;
     const now = await new Promise<number>((resolve) => requestAnimationFrame(resolve));
-    timestamps.push(now);
+
+    if (inSampleWindow) {
+      timestamps.push(now);
+    } else {
+      drainFramesLeft -= 1;
+    }
     elapsed = now - start;
-    if (maxScroll > 0) window.scrollTo(0, Math.min(maxScroll, elapsed * pixelsPerMs));
+
+    if (gl !== null && ext !== null) {
+      if (hasOpenQuery) {
+        gl.endQuery(ext.TIME_ELAPSED_EXT);
+        pendingCount += 1;
+        hasOpenQuery = false;
+      }
+
+      // Results come back in submission order, so the first not-yet-available query
+      // means every later one in the ring is not ready either — stop there.
+      while (pendingCount > 0) {
+        const query = queries[readIndex];
+        if (query === undefined) break;
+        if (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) !== true) break;
+
+        if (gl.getParameter(ext.GPU_DISJOINT_EXT) === true) {
+          gpuDisjointCount += 1;
+        } else {
+          const elapsedNs = gl.getQueryParameter(query, gl.QUERY_RESULT) as number;
+          gpuFrameMs.push(elapsedNs / 1_000_000);
+        }
+        readIndex = (readIndex + 1) % ringSize;
+        pendingCount -= 1;
+      }
+
+      // Only open a new query while still sampling, and only if the ring has a free
+      // slot — a full ring means the driver is behind on readback; skip this frame
+      // rather than clobber an unread result.
+      if (inSampleWindow && pendingCount < ringSize) {
+        const query = queries[writeIndex];
+        if (query !== undefined) {
+          gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+          hasOpenQuery = true;
+          writeIndex = (writeIndex + 1) % ringSize;
+        }
+      }
+    }
+
+    if (inSampleWindow && maxScroll > 0) {
+      window.scrollTo(0, Math.min(maxScroll, elapsed * pixelsPerMs));
+    }
+  }
+
+  if (gl !== null) {
+    for (const query of queries) gl.deleteQuery(query);
   }
 
   document.documentElement.style.scrollBehavior = previousBehavior;
-  return timestamps;
+  return { timestamps, gpuFrameMs, gpuDisjointCount, gpuTimerAvailable };
 };
 
 async function runPass(
@@ -136,27 +264,69 @@ async function runPass(
     await page.goto(url, { waitUntil: 'load' });
     await page.waitForTimeout(500);
 
-    const timestamps = await page.evaluate(collectFrameTimestamps, SAMPLE_DURATION_MS);
-    const instantFps = timestamps
+    const sample = await page.evaluate(collectFrameSamples, {
+      durationMs: SAMPLE_DURATION_MS,
+      ringSize: GPU_QUERY_RING_SIZE,
+      drainFrames: GPU_QUERY_DRAIN_FRAMES,
+    });
+
+    const instantFps = sample.timestamps
       .slice(WARMUP_FRAMES)
       .map((timestamp, index, list) =>
         index === 0 ? null : 1000 / (timestamp - (list[index - 1] ?? timestamp)),
       )
       .filter((fps): fps is number => fps !== null && Number.isFinite(fps));
-    const sorted = [...instantFps].sort((a, b) => a - b);
+    const sortedFps = [...instantFps].sort((a, b) => a - b);
+
+    const sortedGpuMs = [...sample.gpuFrameMs].sort((a, b) => a - b);
+    const hasGpuSamples = sample.gpuTimerAvailable && sortedGpuMs.length > 0;
+    const gpuFrameMsMedian = hasGpuSamples ? round(median(sortedGpuMs)) : null;
+    const gpuFrameMsP95 = hasGpuSamples ? round(percentile(sortedGpuMs, 0.95)) : null;
+    const gpuHeadroomMs = gpuFrameMsP95 === null ? null : round(VSYNC_BUDGET_MS - gpuFrameMsP95);
 
     return {
-      fpsMedian: round(median(sorted)),
-      fpsP5: round(percentile(sorted, 0.05)),
+      fpsMedian: round(median(sortedFps)),
+      fpsP5: round(percentile(sortedFps, 0.05)),
       renderer,
       tier: config.tier,
       durationS: SAMPLE_DURATION_MS / 1000,
       viewport: `${config.width}x${config.height}@${config.deviceScaleFactor}x`,
       measuredAt: nowIso(),
+      gpuFrameMsMedian,
+      gpuFrameMsP95,
+      gpuHeadroomMs,
+      gpuDisjointSamples: sample.gpuDisjointCount,
+      gpuTimerAvailable: sample.gpuTimerAvailable,
     };
   } finally {
     await context.close();
   }
+}
+
+/** One-line GPU summary for `report()`, kept separate so `report()` stays readable. */
+function formatGpuSummary(measurement: FpsMeasurement): string {
+  if (measurement.gpuTimerAvailable !== true) {
+    return 'GPU: EXT_disjoint_timer_query_webgl2 indisponível neste ambiente — sem tempo de GPU.';
+  }
+
+  const { gpuFrameMsMedian, gpuFrameMsP95, gpuHeadroomMs, gpuDisjointSamples } = measurement;
+  if (
+    typeof gpuFrameMsMedian !== 'number' ||
+    typeof gpuFrameMsP95 !== 'number' ||
+    typeof gpuHeadroomMs !== 'number'
+  ) {
+    return 'GPU: extensão presente, mas nenhuma amostra válida sobrou (tudo disjoint?).';
+  }
+
+  const discarded =
+    typeof gpuDisjointSamples === 'number' && gpuDisjointSamples > 0
+      ? ` · ${gpuDisjointSamples} amostra(s) descartada(s) por disjoint`
+      : '';
+
+  return (
+    `GPU: mediana ${gpuFrameMsMedian.toFixed(2)} ms · p95 ${gpuFrameMsP95.toFixed(2)} ms · ` +
+    `folga até ${VSYNC_BUDGET_MS.toFixed(2)} ms → ${gpuHeadroomMs.toFixed(2)} ms${discarded}`
+  );
 }
 
 function report(measurement: FpsMeasurement, minFps: number): boolean {
@@ -166,6 +336,7 @@ function report(measurement: FpsMeasurement, minFps: number): boolean {
       `mediana ${measurement.fpsMedian.toFixed(1)} fps · p5 ${measurement.fpsP5.toFixed(1)} fps ` +
       `· piso ${minFps} → ${ok ? 'OK' : 'ABAIXO DO ORÇAMENTO'}`,
   );
+  console.info(`           ${formatGpuSummary(measurement)}`);
   return ok;
 }
 

@@ -10,20 +10,23 @@ import type { Measurements } from '@/generated';
  */
 
 /**
- * Tetos e pisos da spec §6. Vivem aqui **e** em `scripts/measure-bundle.ts`:
- * um é o que a página promete ao leitor, o outro é o que reprova o build. Se
- * divergirem, o build reprova antes de a página poder mentir.
+ * Referências e pisos da spec §6. Vivem aqui **e** em
+ * `scripts/measure-bundle.ts`. Os três valores em KB deixaram de reprovar o
+ * build — são investimento deliberado de bytes em qualidade (relevo em alta
+ * resolução, nuvem de pontos densa) e ficam como **referência informativa**.
+ * `contrast` e `fps` continuam sendo critério de verdade: `enforced: true` em
+ * `buildSheet` é o que os mantém reprovando.
  */
 export const BUDGETS = {
-  /** KB gzip do HTML + CSS + JS baixados antes do primeiro paint. */
+  /** KB gzip do HTML + CSS + JS baixados antes do primeiro paint. Referência, não reprova. */
   criticalKb: 300,
-  /** KB gzip dos woff2 com subset. */
+  /** KB gzip dos woff2 com subset. Referência, não reprova. */
   fontsKb: 80,
-  /** KB gzip do que é pedido depois do primeiro paint (depth map, nuvem). */
+  /** KB gzip do que é pedido depois do primeiro paint (depth map, nuvem). Referência, não reprova. */
   lazyKb: 600,
-  /** WCAG por pixel, piso para todo texto de conteúdo. */
+  /** WCAG por pixel, piso para todo texto de conteúdo. Critério de verdade — reprova. */
   contrast: 7,
-  /** Mediana de quadros por segundo em GPU real. */
+  /** Mediana de quadros por segundo em GPU real. Critério de verdade — reprova. */
   fps: 60,
 } as const;
 
@@ -38,12 +41,22 @@ export interface SheetRow {
   readonly label: string;
   /** Valor já formatado para leitura, ou `null` quando nenhum script o produziu. */
   readonly value: string | null;
-  /** Teto/piso formatado, ou `null` quando a linha não é um orçamento. */
+  /** Referência/piso formatado, ou `null` quando a linha não tem um. */
   readonly budget: string | null;
-  /** Ocupação do orçamento, 0–1, para a régua. `null` = linha sem régua. */
+  /** Ocupação da referência, 0–1, para a régua. `null` = linha sem régua. */
   readonly load: number | null;
-  /** `null` quando não há orçamento a cumprir (tier, renderizador). */
+  /**
+   * `null` quando a linha não reprova nada: sem referência (tier,
+   * renderizador) **ou** referência informativa em bytes, hoje suspensa de
+   * reprovação. Só `contraste` e `fps` produzem `true`/`false` aqui.
+   */
   readonly ok: boolean | null;
+  /**
+   * Rótulo de ocupação (ex. `"340%"`) quando o medido passa da referência
+   * **e** a linha não reprova por isso — a régua sozinha não daria conta de
+   * comunicar 340% sem parecer erro. `null` na maior parte das linhas.
+   */
+  readonly overLabel: string | null;
   readonly note: string;
 }
 
@@ -67,6 +80,10 @@ const precise = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const percent = new Intl.NumberFormat('pt-BR', {
+  style: 'percent',
+  maximumFractionDigits: 0,
+});
 
 export function formatKb(value: number): string {
   return `${precise.format(value)} KB`;
@@ -86,14 +103,18 @@ function clamp01(value: number): number {
   return value;
 }
 
+/** Razão crua medido/referência (`ceiling`) ou referência/medido (`floor`), sem cap em 1. */
+function budgetRatio(measured: number, budget: number, kind: BudgetKind): number {
+  if (budget <= 0) return 0;
+  return kind === 'ceiling' ? measured / budget : budget / measured;
+}
+
 /**
- * Ocupação da régua. No teto é o quanto do orçamento foi gasto; no piso, o
- * quanto do mínimo já foi alcançado — nos dois casos "cheio" quer dizer "no
- * limite", que é o que a régua precisa comunicar sem uma legenda.
+ * Ocupação da régua, sempre 0–1: a barra não estoura o track mesmo quando o
+ * medido passa muito da referência (`overLabel` é quem carrega o "quanto").
  */
 export function budgetLoad(measured: number, budget: number, kind: BudgetKind): number {
-  if (budget <= 0) return 0;
-  return clamp01(kind === 'ceiling' ? measured / budget : budget / measured);
+  return clamp01(budgetRatio(measured, budget, kind));
 }
 
 function meetsBudget(measured: number, budget: number, kind: BudgetKind): boolean {
@@ -105,24 +126,43 @@ interface BudgetRowInput {
   measured: number | null;
   budget: number;
   kind: BudgetKind;
+  /**
+   * `true`: linha reprova de verdade (contraste, fps) — `ok` carrega
+   * verdadeiro/falso. `false`: linha é referência informativa (bytes) —
+   * `ok` fica sempre `null`, e passar da referência vira `overLabel`, não
+   * reprovação.
+   */
+  enforced: boolean;
   format: (value: number) => string;
   note?: string;
 }
 
 function budgetRow(input: BudgetRowInput): SheetRow {
-  const { id, measured, budget, kind, format } = input;
+  const { id, measured, budget, kind, enforced, format } = input;
   const label = medicao.rows[id] ?? id;
   const note = input.note ?? medicao.notes[id] ?? '';
   if (measured === null) {
-    return { id, label, value: null, budget: format(budget), load: null, ok: null, note };
+    return {
+      id,
+      label,
+      value: null,
+      budget: format(budget),
+      load: null,
+      ok: null,
+      overLabel: null,
+      note,
+    };
   }
+  const ratio = budgetRatio(measured, budget, kind);
+  const over = !enforced && ratio > 1;
   return {
     id,
     label,
     value: format(measured),
     budget: format(budget),
-    load: budgetLoad(measured, budget, kind),
-    ok: meetsBudget(measured, budget, kind),
+    load: clamp01(ratio),
+    ok: enforced ? meetsBudget(measured, budget, kind) : null,
+    overLabel: over ? percent.format(ratio) : null,
     note,
   };
 }
@@ -135,6 +175,7 @@ function plainRow(id: string, value: string): SheetRow {
     budget: null,
     load: null,
     ok: null,
+    overLabel: null,
     note: medicao.notes[id] ?? '',
   };
 }
@@ -151,6 +192,7 @@ export function buildSheet(data: Measurements, runtime: RuntimeReading): SheetRo
       measured: bundle?.criticalKb ?? null,
       budget: BUDGETS.criticalKb,
       kind: 'ceiling',
+      enforced: false,
       format: formatKb,
     }),
     budgetRow({
@@ -158,6 +200,7 @@ export function buildSheet(data: Measurements, runtime: RuntimeReading): SheetRo
       measured: bundle?.fontsKb ?? null,
       budget: BUDGETS.fontsKb,
       kind: 'ceiling',
+      enforced: false,
       format: formatKb,
     }),
     budgetRow({
@@ -165,6 +208,7 @@ export function buildSheet(data: Measurements, runtime: RuntimeReading): SheetRo
       measured: bundle?.lazyKb ?? null,
       budget: BUDGETS.lazyKb,
       kind: 'ceiling',
+      enforced: false,
       format: formatKb,
     }),
     budgetRow({
@@ -172,6 +216,7 @@ export function buildSheet(data: Measurements, runtime: RuntimeReading): SheetRo
       measured: contrast?.minContrast ?? null,
       budget: BUDGETS.contrast,
       kind: 'floor',
+      enforced: true,
       format: formatContrast,
     }),
     budgetRow({
@@ -179,6 +224,7 @@ export function buildSheet(data: Measurements, runtime: RuntimeReading): SheetRo
       measured: runtime.fps,
       budget: BUDGETS.fps,
       kind: 'floor',
+      enforced: true,
       format: formatFps,
       note: runtime.reducedMotion ? REDUCED_MOTION_FPS_NOTE : medicao.notes['fps'],
     }),

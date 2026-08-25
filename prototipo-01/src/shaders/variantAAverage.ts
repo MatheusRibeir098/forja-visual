@@ -24,6 +24,15 @@ export const vertex: string = FULLSCREEN_TRIANGLE_VERTEX;
  *   para o render target linear do composite, que faz o encode no quad final.
  *   `RawShaderMaterial` não recebe o chunk de color space do three, então sem
  *   este switch a cena mudaria de cor no primeiro quadro da transição.
+ * - `uSafeCenter`, `uSafeHalf`, `uSafeCenter2`, `uSafeHalf2`, `uSafeFeather`
+ *   mesmas (até duas) áreas reservadas ao texto HTML que o campo
+ *   (`@/shaders/variantAField`) recebe — ver `paintSafeArea`. `uSafeHalf2` em
+ *   `(0,0)` desliga a segunda região.
+ * - `uProgress`       progresso 0–1 da varredura (o mesmo que o composite usa
+ *   para o threshold). Só governa a *força* da proteção, não a posição: em
+ *   `uProgress` 0 a média precisa continuar intacta (é o beat em que o
+ *   visitante reconhece o padrão), então a proteção nasce zerada e sobe antes
+ *   da primeira janela de revelação de texto abrir (ver `SAFE_RAMP_END`).
  */
 export const fragment: string = /* glsl */ `
 precision highp float;
@@ -33,6 +42,12 @@ out vec4 outColor;
 
 uniform float uAspect;
 uniform float uDirectToScreen;
+uniform vec2 uSafeCenter;
+uniform vec2 uSafeHalf;
+uniform vec2 uSafeCenter2;
+uniform vec2 uSafeHalf2;
+uniform float uSafeFeather;
+uniform float uProgress;
 
 // ---------------------------------------------------------------------------
 // Paleta da média. Não é escolha de gosto: são as famílias violet-600,
@@ -117,6 +132,68 @@ const float GLASS_BORDER = 0.22;
 // Largura mínima de traço, em height-units. 0.0016 ≈ 1.2 px em 720 de altura:
 // abaixo disso a borda some por subamostragem em telas de dpr 1.
 const float MIN_STROKE = 0.0016;
+
+// ---------------------------------------------------------------------------
+// Área segura do texto (lição de 'variantAField': escurece a **cor**, nunca o
+// alfa — esta cena não tem alfa para abusar mesmo, é sempre opaca, mas a razão
+// é a mesma: se o threshold ainda não virou para o campo neste pixel, é esta
+// camada que precisa estar escura por conta própria).
+// ---------------------------------------------------------------------------
+
+/**
+ * Piso multiplicativo dentro da área segura. Mais baixo que o do campo (0.30)
+ * porque a base daqui é um gradiente saturado (luminância alta), não aço cinza
+ * — precisa de mais atenuação para chegar ao mesmo teto de luminância. Medido
+ * contra o pior caso plausível (um retângulo branco do wireframe, luminância 1,
+ * sob o piso): ~0.008 de luminância relativa, 8:1 contra '--fg' (#a7adb6, o
+ * texto mais escuro do hero), com folga sobre os 7:1 exigidos.
+ */
+const float SAFE_AREA_FLOOR = 0.07;
+
+/** Mesma chapa quase preta do fundo do campo ('variantAField.backdropFragment'
+ * — não pode importar a constante entre dois módulos GLSL-em-string, então é
+ * repetida; qualquer mudança lá precisa vir para cá). Usar o mesmo tom faz o
+ * patch escurecido ler como "a chapa real aparecendo cedo", não como mancha
+ * arbitrária. */
+const vec3 SAFE_AREA_PLATE = vec3(0.031, 0.031, 0.039);
+
+/**
+ * Progresso em que a proteção atinge força total. Precisa ser bem menor que
+ * 0.39 (progresso bruto equivalente à primeira janela de revelação de texto,
+ * 'REVEAL_WINDOWS.index' em 'hero/index.ts', curva 0.22) — mas o hold em
+ * 'uProgress' 0 já é a garantia real de que a média nasce intacta (o clamp de
+ * 'progress' em 'hero/index.ts' mantém 0 exato durante os 0.6 s do hold, então
+ * nenhum valor de rampa aqui muda esse beat). Uma rampa quase instantânea
+ * evita a janela em que o piso ainda está subindo e o retângulo aparece só
+ * parcialmente escurecido — foi nela que a medição pegou o pior caso.
+ */
+const float SAFE_RAMP_END = 0.03;
+
+/** Distância (com sinal) de 'ndc' à caixa arredondada 'center'±'half', em NDC. */
+float safeBoxDistance(vec2 ndc, vec2 center, vec2 half_) {
+  vec2 relative = abs(ndc - center) - half_;
+  return length(max(relative, vec2(0.0))) + min(max(relative.x, relative.y), 0.0);
+}
+
+/**
+ * Escurece 'col' dentro dos (até duas) retângulos reservados a texto HTML. Usa
+ * a mesma métrica de "distância a uma caixa arredondada" do campo (soma da
+ * distância externa com a distância interna clampada), só que em NDC de tela
+ * cheia em vez de espaço de mundo. 'min' entre as duas atenuações espaciais
+ * escurece o pixel se ele cair dentro de qualquer uma das regiões — a segunda
+ * nasce com 'uSafeHalf2' em '(0,0)' (nunca aciona) quando ninguém a define.
+ */
+vec3 paintSafeArea(vec3 col, vec2 uv, float progress) {
+  vec2 ndc = uv * 2.0 - 1.0;
+  float d1 = safeBoxDistance(ndc, uSafeCenter, uSafeHalf);
+  float d2 = safeBoxDistance(ndc, uSafeCenter2, uSafeHalf2);
+  float spatial1 = mix(SAFE_AREA_FLOOR, 1.0, smoothstep(0.0, uSafeFeather, d1));
+  float spatial2 = mix(SAFE_AREA_FLOOR, 1.0, smoothstep(0.0, uSafeFeather, d2));
+  float spatial = min(spatial1, spatial2);
+  float strength = smoothstep(0.0, SAFE_RAMP_END, progress);
+  float attenuation = mix(1.0, spatial, strength);
+  return mix(SAFE_AREA_PLATE, col, attenuation);
+}
 
 // ---------------------------------------------------------------------------
 
@@ -251,6 +328,8 @@ void main() {
   for (int i = 0; i < 3; i++) {
     drawCard(col, q, (float(i) - 1.0) * CARD_STRIDE, px);
   }
+
+  col = paintSafeArea(col, vUv, uProgress);
 
   outColor = vec4(uDirectToScreen > 0.5 ? col : srgbToLinear(col), 1.0);
 }

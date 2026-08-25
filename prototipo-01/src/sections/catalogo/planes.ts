@@ -21,10 +21,15 @@ import type { DataTexture, IUniform, PerspectiveCamera } from 'three';
  *    mede todas antes de escrever qualquer coisa; o progresso de scroll de cada
  *    ficha sai de `domSync.rectOf()`, isto é, do retângulo que já foi lido — e
  *    não de 16 beats com 16 `getBoundingClientRect()` a mais.
- * 2. **Scissor na faixa da seção.** O canvas é um só e o hero e o relevo também
- *    desenham nele. Limpar a tela inteira aqui apagaria os vizinhos, então a
- *    seção só escreve na faixa que os seus próprios planos ocupam — e não
- *    desenha nada quando essa faixa está fora da tela.
+ * 2. **Scissor na faixa da seção.** Ninguém escreve direto no canvas: toda
+ *    seção escreve no FBO de página (`gl.frame.target`, `engine/frame.ts`),
+ *    que `main.ts` compõe na tela uma vez só, no fim do quadro. O hero e o
+ *    relevo também escrevem nesse FBO. Limpar a página inteira aqui apagaria
+ *    os vizinhos, então a seção só escreve na faixa que os seus próprios
+ *    planos ocupam — e não desenha nada quando essa faixa está fora da tela.
+ *    `renderer.setScissor()` continua certo aqui: esta seção nunca troca de
+ *    render target, então o recorte solto do renderer não é pisado por
+ *    ninguém — o FBO já está ligado quando este `render()` roda.
  * 3. **Teto de tinta.** O shader nunca passa de `INK_MAX`, e `INK_MAX` foi
  *    escolhido pelo contraste do pior par de cores da seção, não pelo gosto.
  */
