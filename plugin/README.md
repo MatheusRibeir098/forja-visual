@@ -54,7 +54,7 @@ scripts/measure-fps.ts         FPS/GPU-ms em GPU real (reprova mediana < 60)
 scripts/measure-variant.ts     bgLuminance, motionCoverage, typeScaleRatio de uma variante (fase 2)
 scripts/ingest-asset.ts        processa um asset do usuário em build time (derivado determinístico)
 scripts/check-attribution.ts   crédito de licença e ausência de arquivo fonte no repo (reprova)
-scripts/check-structure.ts     cada arquivo na pasta do seu papel; texto fora do markup (reprova)
+scripts/check-structure.ts     cada arquivo na pasta do seu papel; texto fora do markup; prefers-reduced-motion fora do código (reprova)
 templates/site/                ponto de partida de todo site: motor, shaders, estilos e a estrutura
 ```
 
@@ -151,7 +151,7 @@ pnpm exec tsx <plugin>/scripts/check-structure.ts --project=.          # 0 ok ·
 pnpm exec tsx <plugin>/scripts/check-structure.ts --project=. --json --no-engine
 ```
 
-Quatro verificações, todas estáticas e todas reprovando:
+Cinco verificações, todas estáticas e todas reprovando:
 
 1. **lugar do arquivo** — só as pastas da estrutura sob `src/`; uma seção é uma **pasta** com
    `index.ts` exportando `mountSection`; CSS de seção na pasta da seção, e `src/styles/` sem
@@ -161,7 +161,12 @@ Quatro verificações, todas estáticas e todas reprovando:
 3. **`src/generated/` com procedência** — cada arquivo é um derivado registrado com o `sha256`
    que a ingestão gravou (hash diferente = editado depois de gerado) ou traz `@generated` no
    cabeçalho;
-4. **`src/engine/` intocado** — comparado byte a byte com `templates/site/src/engine/`.
+4. **`src/engine/` intocado** — comparado byte a byte com `templates/site/src/engine/`;
+5. **`prefers-reduced-motion` fora do código** — nenhum `@media (prefers-reduced-motion...)` em
+   CSS, nenhum `matchMedia` lendo essa preferência em TypeScript/JavaScript; a ferramenta ignora a
+   preferência por decisão de produto (§5.1), comentário descontado — é assim que o próprio
+   `src/engine/tier.ts` do template, que cita a expressão em comentário para explicar como
+   reverter a decisão, passa limpo.
 
 O que ele **não** vê, declarado: texto no `index.html` (ali o markup é o esqueleto legível sem
 JavaScript), nome de shader que descreve efeito em vez de mecanismo, arquivo gerado editado e

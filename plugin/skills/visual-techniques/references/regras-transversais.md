@@ -171,18 +171,28 @@ navegador agrupa eventos de entrada, e o resultado lê como engasgo.
 Windows relatou como site travado — a causa não era a ausência de um `if (prefersReducedMotion)`,
 era o handler de scroll sendo a única fonte de quadro. Ler a preferência não teria corrigido nada.
 
-**Verificação — runtime.** Dispare uma sequência de eventos `wheel`/`scroll` sintéticos espaçados
-de poucos milissegundos entre si e conte quadros pintados no intervalo entre o primeiro e o último
-evento: tem de haver **mais de um quadro por evento de entrada** — sinal de que o progresso é lido
-pelo ticker, não escrito dentro do handler.
+**Verificação — estático + runtime.**
+- Runtime: dispare uma sequência de eventos `wheel`/`scroll` sintéticos espaçados de poucos
+  milissegundos entre si e conte quadros pintados no intervalo entre o primeiro e o último
+  evento: tem de haver **mais de um quadro por evento de entrada** — sinal de que o progresso é
+  lido pelo ticker, não escrito dentro do handler.
+- Estático: `check-structure.ts` reprova qualquer `@media (prefers-reduced-motion...)` em CSS e
+  qualquer `matchMedia` lendo `prefers-reduced-motion` em TypeScript/JavaScript do site gerado —
+  comentário descontado, com o mesmo tokenizador que já separa comentário de código na
+  verificação de texto hardcoded (item 2 do portão de estrutura). É a metade da regra que ficava
+  "não verificável" até esta verificação existir: pega a forma direta do defeito (leitura da API),
+  não prova a ausência de todo desvio possível (um valor lido e propagado por variável com outro
+  nome escaparia a um grep estático) — é complemento do runtime acima, não substituto dele.
 
 **Reprova quando.** Quadro pintado só dentro do handler de `scroll`/`wheel`/`pointermove`; contagem
-de quadros pintados igual ou menor que a contagem de eventos de entrada no mesmo intervalo.
+de quadros pintados igual ou menor que a contagem de eventos de entrada no mesmo intervalo; ou
+`@media (prefers-reduced-motion...)`/`matchMedia('...prefers-reduced-motion...')` fora de
+comentário em qualquer código do site gerado.
 
-**Não verificável, e não é lacuna.** `prefers-reduced-motion` não é lido para decidir frameloop,
-callbacks ou tier — em nenhuma variante, em nenhuma tarefa. É decisão de produto, escrita e
-assumida: quem desliga animação por distúrbio vestibular (enjoo, tontura, dor de cabeça com
-movimento na tela) vê o site se mexer do mesmo jeito que qualquer outra máquina.
+`prefers-reduced-motion` não é lido para decidir frameloop, callbacks ou tier — em nenhuma
+variante, em nenhuma tarefa. É decisão de produto, escrita e assumida: quem desliga animação por
+distúrbio vestibular (enjoo, tontura, dor de cabeça com movimento na tela) vê o site se mexer do
+mesmo jeito que qualquer outra máquina.
 
 **Nota histórica — protótipo 01.** O protótipo 01, anterior a esta decisão, respeitava a
 preferência: sob `prefers-reduced-motion: reduce` o ticker entrava em modo demand e as capturas

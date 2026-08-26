@@ -82,13 +82,16 @@ pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=.
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=. --json   # o mesmo, em JSON
 ```
 
-Ele lê a árvore de arquivos e reprova quatro coisas: **(1)** arquivo de seção fora de
+Ele lê a árvore de arquivos e reprova cinco coisas: **(1)** arquivo de seção fora de
 `src/sections/<nome>/` — ou pasta de seção sem `index.ts` exportando `mountSection`, ou CSS de
 seção morando em `src/styles/`; **(2)** texto visível hardcoded no markup de uma seção
 (`textContent`, `innerHTML`, `insertAdjacentHTML`, HTML com prosa em literal, `aria-label`/`alt`/
 `title`) em vez de vir de `src/content/<nome>.ts`; **(3)** arquivo em `src/generated/` sem
 procedência, ou com `sha256` diferente do que a ingestão gravou — que é edição à mão depois de
-gerado; **(4)** `src/engine/` alterado, comparado byte a byte com `templates/site/src/engine/`.
+gerado; **(4)** `src/engine/` alterado, comparado byte a byte com `templates/site/src/engine/`;
+**(5)** `@media (prefers-reduced-motion...)` em CSS ou `matchMedia` lendo essa preferência em
+TypeScript/JavaScript — comentário descontado, então o próprio `src/engine/tier.ts` do template,
+que cita a expressão explicando como reverter a decisão §5.1, passa limpo.
 
 Isto reprova pelo mesmo motivo que contraste reprova: a estrutura é o que torna o paralelismo da
 fase 4 possível (*arquivos disjuntos*), e regra sem verificação é conselho. **Rode-o antes dos
@@ -250,14 +253,15 @@ bordas, sobreposição durante a transição — e capture no máximo o estado q
 Rode estas quando a tarefa toca o loop ou o pipeline; são baratas e pegam o que a imagem esconde:
 
 - `check-structure.ts --project=.` → **0**. Ele já cobre "seção fora da pasta", "texto no markup",
-  "`generated/` editado à mão" e "`engine/` alterado" — não refaça essas quatro por grep.
+  "`generated/` editado à mão", "`engine/` alterado" e "leitura de `prefers-reduced-motion`" — não
+  refaça essas cinco por grep.
 - `grep -rn "requestAnimationFrame" src/` → deve dar **1**.
 - `grep -rn "postprocessing\|EffectComposer\|gsap\|lenis\|@react-three" src/ package.json` → vazio.
 - `getBoundingClientRect` fora do lote de leitura do quadro.
 - Movimento por scroll (regra 8): dispare eventos `wheel`/`scroll` sintéticos espaçados de poucos
   milissegundos e conte quadros pintados entre o primeiro e o último — tem de haver **mais de um
-  quadro por evento de entrada** (progresso lido pelo ticker, não escrito no handler). Não confira
-  `prefers-reduced-motion`: a ferramenta não lê essa preferência, por decisão de produto.
+  quadro por evento de entrada** (progresso lido pelo ticker, não escrito no handler). A leitura de
+  `prefers-reduced-motion` já é coberta por `check-structure.ts` (item 5) — não refaça por grep.
 - `scrollWidth === clientWidth` em 375 px.
 - `:focus-visible` visível sobre o fundo real da seção.
 - Com `assets` no brief: `grep -rn "STLLoader\|OBJLoader\|GLTFLoader\|DRACOLoader" src/` → **vazio**

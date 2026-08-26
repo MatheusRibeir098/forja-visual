@@ -165,9 +165,10 @@ e remontar a seção passa a exigir copiar-e-colar de parágrafos.
 
 **Verificação:** `check-structure.ts --project=.` → `0`. Ele reprova arquivo de seção fora da
 pasta, pasta de seção sem `index.ts`, CSS de seção no global, frase visível no markup, arquivo em
-`src/generated/` sem procedência (ou com `sha256` diferente do que a ingestão gravou) e qualquer
-alteração em `src/engine/`. Sem esse portão a regra é conselho — e conselho é ignorado quando
-aperta.
+`src/generated/` sem procedência (ou com `sha256` diferente do que a ingestão gravou), qualquer
+alteração em `src/engine/`, e `@media (prefers-reduced-motion...)`/`matchMedia` lendo essa
+preferência em qualquer código do site (regra 8, decisão de produto §5.1 — comentário descontado).
+Sem esse portão a regra é conselho — e conselho é ignorado quando aperta.
 
 ### 1.11 Aumentar densidade só porque "cabe no orçamento"
 
@@ -470,7 +471,7 @@ Ler isto antes de prometer ao usuário:
 |---|---|---|
 | Contraste | **≥ 7:1**, medido **por pixel** | **reprova** |
 | FPS | mediana **≥ 60** em GPU real (renderer registrado) | **reprova** |
-| Estrutura | cada arquivo na pasta do seu papel; texto em `content/`; `generated/` com procedência; `engine/` intocado (§1.10) | **reprova** |
+| Estrutura | cada arquivo na pasta do seu papel; texto em `content/`; `generated/` com procedência; `engine/` intocado; `prefers-reduced-motion` fora do código (§1.10) | **reprova** |
 | Crédito de licença | todo `attribution` registrado como link real, com texto, fora de toda seção (§4.3) | **reprova** |
 | Fonte fora do repo | nenhum arquivo de origem sob a raiz do site (§4.2) | **reprova** |
 | Build · typecheck · lint · test | verde | **reprova** |
@@ -503,7 +504,8 @@ vermelho vira critério na cabeça do próximo leitor.
 - [ ] Atenuação por cor, não por alpha; elemento revelado por clip-path tem `opacity` derivada.
 - [ ] Contagem de amostras justificada em **pixels cobertos por passo**.
 - [ ] `check-structure.ts --project=.` saiu com 0: seção é pasta, texto é `src/content/<nome>.ts`,
-      `src/generated/` tem procedência, `src/engine/` idêntico ao template.
+      `src/generated/` tem procedência, `src/engine/` idêntico ao template, nenhuma leitura de
+      `prefers-reduced-motion` (regra 8).
 - [ ] Asset do usuário passou por `ingest-asset.ts`; zero loader de malha em `src/`.
 - [ ] Nenhum arquivo de origem (`.stl`, `.obj`, `.psd`, `.ttf`…) sob a raiz do site.
 - [ ] Todo `attribution` do `.forge-visual/assets.json` é `<a href>` com texto, fora de `<section>`.

@@ -10,7 +10,7 @@
  * aperta — o item 7 do backlog registra uma proibição que nenhum medidor acusava e que por isso
  * era obedecida errado.
  *
- * Quatro verificações, todas estáticas (nenhum navegador, nenhum build), todas reprovam:
+ * Cinco verificações, todas estáticas (nenhum navegador, nenhum build), todas reprovam:
  *
  * 1. **Lugar do arquivo.** Só as pastas da §5.2 existem sob `src/`; uma seção é uma **pasta**
  *    com `index.ts` exportando `mountSection`; CSS de seção vive na pasta da seção e `styles/`
@@ -27,6 +27,12 @@
  * 4. **`src/engine/` intocado.** O motor vem do template do plugin e é comparado byte a byte
  *    com ele: um ajuste ali atinge todas as seções ao mesmo tempo, o que é o oposto de arquivos
  *    disjuntos. Precisa de algo que o motor não dá? A correção pertence ao template, não ao site.
+ * 5. **`prefers-reduced-motion` fora do código.** A §5.1 decide, por produto, que o site anima
+ *    para todo mundo — nenhum `@media (prefers-reduced-motion...)` em CSS e nenhum `matchMedia`
+ *    lendo essa preferência em TypeScript/JavaScript, em código nenhum de `src/`. Comentário não
+ *    conta: o mesmo tokenizador da verificação 2 apaga comentário antes de procurar, e é por
+ *    isso que `src/engine/tier.ts` — que cita a expressão em comentário, explicando como
+ *    reverter a decisão — passa limpo.
  *
  * **O que este portão NÃO vê**, declarado porque limite escondido vira falsa confiança:
  *
@@ -93,7 +99,7 @@ const MIN_PROSE_LETTERS = 4;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.forge-visual', 'coverage']);
 
 interface Violation {
-  readonly check: 'lugar' | 'texto' | 'gerado' | 'motor';
+  readonly check: 'lugar' | 'texto' | 'gerado' | 'motor' | 'motion';
   /** Caminho relativo à raiz do site, com `/` em qualquer plataforma. */
   readonly file: string;
   readonly line: number | null;
@@ -308,9 +314,21 @@ interface Literal {
 
 const SINK_CONTEXT_CHARS = 80;
 
-function scanLiterals(source: string): Literal[] {
-  const literals: Literal[] = [];
+interface TokenizedSource {
   /** Cópia do fonte com todo comentário virado espaço, preservando deslocamento e linhas. */
+  readonly stripped: string;
+  readonly marks: readonly { readonly start: number; readonly end: number; readonly value: string }[];
+}
+
+/**
+ * Tokenizador mínimo, comum às verificações 2 e 5: separa comentário (linha dupla-barra ou bloco
+ * barra-asterisco) de string (aspas simples, duplas e template literal), preservando posição e
+ * linha. `stripped` apaga só o comentário — string e código continuam visíveis nele, que é onde
+ * os dois portões buscam. Sem isto, o próprio comentário que explica uma regra (que cita a API
+ * que a regra proíbe) seria acusado — e um portão que acusa a própria documentação é desligado
+ * no primeiro dia.
+ */
+function tokenize(source: string): TokenizedSource {
   const code = source.split('');
   const marks: { start: number; end: number; value: string }[] = [];
 
@@ -394,7 +412,18 @@ function scanLiterals(source: string): Literal[] {
     index += 1;
   }
 
-  const stripped = code.join('');
+  return { stripped: code.join(''), marks };
+}
+
+/** Fonte sem comentário (virado espaço) — string e código continuam visíveis nela. Usa `tokenize`. */
+function stripComments(source: string): string {
+  return tokenize(source).stripped;
+}
+
+function scanLiterals(source: string): Literal[] {
+  const literals: Literal[] = [];
+  const { stripped, marks } = tokenize(source);
+  const length = source.length;
   const lineOf = (offset: number): number => {
     let line = 1;
     for (let at = 0; at < offset && at < length; at += 1) if (source[at] === '\n') line += 1;
@@ -634,6 +663,74 @@ function checkEngine(projectRoot: string, templateDir: string): EngineResult {
 }
 
 // ---------------------------------------------------------------------------------------
+// 5. `prefers-reduced-motion` — decisão de produto (§5.1), não escolha de quem escreve a seção
+//
+// A decisão está em `PLUGIN-SPEC.md` §5.1 e repetida em comentário no próprio template
+// (`src/engine/tier.ts`, `src/styles/base.css`): os sites gerados ignoram a preferência e
+// animam para todo mundo. Regra 8 de `regras-transversais.md` declarava isto "não verificável"
+// — deixa de ser: qualquer `@media (prefers-reduced-motion...)` em CSS, ou leitura de
+// `matchMedia` com `prefers-reduced-motion` em TypeScript/JavaScript, reprova. Comentário não
+// conta — reusa o `tokenize()` da verificação 2, que já apaga comentário antes de procurar, e é
+// como o próprio template (que cita a expressão em comentário, explicando como reverter) passa
+// sem ser acusado da própria documentação.
+// ---------------------------------------------------------------------------------------
+
+/** `@media (prefers-reduced-motion...)` — CSS puro ou embutido num template string de estilo. */
+const MEDIA_QUERY_PATTERN = /@media\s*\(\s*prefers-reduced-motion/i;
+
+/** Leitura da preferência via `matchMedia`, em qualquer JavaScript/TypeScript do site. */
+const MATCH_MEDIA_PATTERN = /matchMedia\s*\(\s*['"`][^'"`]*prefers-reduced-motion/i;
+
+const REDUCED_MOTION_FIX =
+  'a §5.1 da spec decide, por produto, que o site anima para todo mundo — nenhum código do site ' +
+  'lê `prefers-reduced-motion`. Quem escreveu isto provavelmente estava sendo cuidadoso com ' +
+  'acessibilidade, e o custo dessa decisão é real e assumido, não descuido. Se o dono quiser ' +
+  'reverter, as três linhas que fazem isso estão documentadas em `src/engine/tier.ts`, na ' +
+  'declaração de `reducedMotion` — não reintroduza a leitura aqui.';
+
+function lineNumberAt(text: string, offset: number): number {
+  let line = 1;
+  for (let at = 0; at < offset && at < text.length; at += 1) if (text[at] === '\n') line += 1;
+  return line;
+}
+
+function checkReducedMotion(projectRoot: string): Violation[] {
+  const violations: Violation[] = [];
+  const srcDir = join(projectRoot, 'src');
+
+  for (const file of listFiles(projectRoot, srcDir)) {
+    if (!isCode(file)) continue;
+    const stripped = stripComments(readFileSync(join(projectRoot, file), 'utf8'));
+
+    const media = MEDIA_QUERY_PATTERN.exec(stripped);
+    if (media !== null) {
+      violations.push({
+        check: 'motion',
+        file,
+        line: lineNumberAt(stripped, media.index),
+        problem:
+          '`@media (prefers-reduced-motion...)` no código do site — a decisão de ignorar a preferência é de produto (§5.1), não escolha de quem escreveu esta seção.',
+        fix: REDUCED_MOTION_FIX,
+      });
+    }
+
+    const matchMedia = MATCH_MEDIA_PATTERN.exec(stripped);
+    if (matchMedia !== null) {
+      violations.push({
+        check: 'motion',
+        file,
+        line: lineNumberAt(stripped, matchMedia.index),
+        problem:
+          '`matchMedia` lendo `prefers-reduced-motion` no código do site — o motor já decidiu (§5.1) que essa leitura não acontece em nenhuma seção.',
+        fix: REDUCED_MOTION_FIX,
+      });
+    }
+  }
+
+  return violations;
+}
+
+// ---------------------------------------------------------------------------------------
 // Relatório
 // ---------------------------------------------------------------------------------------
 
@@ -642,6 +739,7 @@ const CHECK_TITLES: Readonly<Record<Violation['check'], string>> = {
   texto: 'texto em `src/content/`, nunca no markup da seção',
   gerado: '`src/generated/` com procedência',
   motor: '`src/engine/` intocado',
+  motion: '`prefers-reduced-motion` fora do código (decisão §5.1)',
 };
 
 function printCheck(check: Violation['check'], index: number, violations: readonly Violation[], okLine: string): void {
@@ -693,6 +791,7 @@ function main(): void {
     ...checkPlacement(target.projectRoot, sectionNames),
     ...checkHardcodedText(target.projectRoot),
     ...checkGenerated(target.projectRoot, registryFile),
+    ...checkReducedMotion(target.projectRoot),
   ];
 
   const engine = wantsEngine
@@ -710,6 +809,8 @@ function main(): void {
   } else {
     console.info('\n4. `src/engine/` intocado — não conferido (--no-engine).');
   }
+
+  printCheck('motion', 5, violations, 'nenhuma leitura de `prefers-reduced-motion` no código do site — a decisão §5.1 segue de pé.');
 
   // As páginas de inspeção são informação, não portão: uma seção sem `dev/<nome>.html` continua
   // correta, só custa mais caro de diagnosticar quando quebrar.

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "forge-visual",
   "displayName": "Forge Visual",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Constrói sites de alto impacto visual em TypeScript puro + Vite + three: questionário de direção visual, número de variantes configurável, catálogo de técnicas por mecanismo, anexos do usuário com portão de licença, e medição que reprova o build (estrutura, contraste >= 7:1, FPS >= 60 em GPU real).",
   "author": {
     "name": "MatheusRibeir098"
