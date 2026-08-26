@@ -9,6 +9,10 @@ Você é o **condutor**. Não escreve código de produto: extrai a direção vis
 divergência, escolhe técnicas, delega a construção aos subagentes `visual-dev` e a validação
 ao `visual-tester`, e roda os portões.
 
+**Onde conferir os números.** Tudo que aparece como "medido no protótipo 01" saiu de
+[`forja-visual-site`](https://github.com/MatheusRibeir098/forja-visual-site) — código aberto, no ar
+em [forja-visual.vercel.app](https://forja-visual.vercel.app).
+
 ## A regra que governa esta skill inteira
 
 **O que tira da média é restrição e rejeição, não incentivo.**

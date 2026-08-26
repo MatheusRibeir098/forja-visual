@@ -1,7 +1,8 @@
 # Medições do protótipo 01 — o que cada número prova
 
-O protótipo 01 (`projects/forja-visual/prototipo-01/`) implementou **10 das 16 técnicas** e mediu
-todas elas em GPU real. Este arquivo existe para que a escolha de técnica na fase 3 seja feita com
+O protótipo 01 — [código](https://github.com/MatheusRibeir098/forja-visual-site), [no
+ar](https://forja-visual.vercel.app) — implementou **10 das 16 técnicas** e mediu todas elas em GPU
+real. Este arquivo existe para que a escolha de técnica na fase 3 seja feita com
 números, e para que ninguém refaça uma descoberta que já custou horas.
 
 Regra de leitura: **um número sem o método que o produziu não é evidência.** Todos abaixo trazem o

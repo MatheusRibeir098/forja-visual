@@ -1,8 +1,9 @@
 # Template de site — `forge-visual`
 
-Ponto de partida de **todo** site gerado pelo plugin: o motor provado do protótipo 01, sem
-nenhuma decisão de imagem dentro. Copie a pasta inteira para o diretório do site novo e
-comece pela primeira seção — não por `pnpm create vite`.
+Ponto de partida de **todo** site gerado pelo plugin: o motor provado do protótipo 01
+([código](https://github.com/MatheusRibeir098/forja-visual-site), [no
+ar](https://forja-visual.vercel.app)), sem nenhuma decisão de imagem dentro. Copie a pasta inteira
+para o diretório do site novo e comece pela primeira seção — não por `pnpm create vite`.
 
 ```bash
 cp -R "${CLAUDE_PLUGIN_ROOT}/templates/site/." ./meu-site/

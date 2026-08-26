@@ -16,6 +16,10 @@ distintiva possível.
 Por isso aqui não há adjetivo motivacional: só proibição com motivo, exigência com forma de
 verificar, e armadilha com o número que ela custou.
 
+**Onde conferir os números.** Tudo que aparece como "medido no protótipo 01" saiu de
+[`forja-visual-site`](https://github.com/MatheusRibeir098/forja-visual-site) — código aberto, no ar
+em [forja-visual.vercel.app](https://forja-visual.vercel.app).
+
 **Toda proibição vem com motivo.** Proibição sem motivo é obedecida errado — o agente contorna a
 letra e reproduz o problema com outro nome. Se você discorda de um item, **reporte em
 `pendencias`**; não contorne por conta própria.

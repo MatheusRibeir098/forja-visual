@@ -156,11 +156,16 @@ as cores reais, o medidor de contraste reprova. O template não deixa você esqu
 
 ---
 
-## A prova
+## A prova — o projeto irmão
 
-**[`prototipo-01/`](prototipo-01/)** — uma página única que explica por que sites de IA parecem
-iguais e desmente a tese sendo o contrário disso. Foi construída com esse método, à mão, antes da
-ferramenta existir.
+**[forja-visual.vercel.app](https://forja-visual.vercel.app)** — uma página única que explica por
+que sites de IA parecem iguais e desmente a tese sendo o contrário disso. Foi construída com esse
+método, à mão, antes da ferramenta existir.
+
+Ela vive em **repositório próprio**,
+[`forja-visual-site`](https://github.com/MatheusRibeir098/forja-visual-site), e evolui junto com o
+plugin: é o exemplo vivo do nível que a ferramenta precisa alcançar, não uma pasta de demonstração
+congelada.
 
 Números medidos, não estimados:
 
@@ -169,7 +174,7 @@ Números medidos, não estimados:
 | Contraste mínimo | **7,93 : 1** (piso 7) |
 | FPS | **59,9** mediana, desktop e mobile |
 | Técnicas do catálogo em uso | **11** |
-| Testes | 65 |
+| Testes | **72** |
 
 Ela abre com uma caricatura deliberada do "site médio de IA" — gradiente roxo, cards de vidro, dois
 botões — que é destruída por um campo de limalha magnética nos primeiros segundos. É a tese sendo
@@ -187,8 +192,8 @@ riscos.
 
 ## Estado honesto
 
-**O que está provado:** que o nível é alcançável. O protótipo 01 existe, é medido, e não parece
-gerado.
+**O que está provado:** que o nível é alcançável. O protótipo 01 está
+[no ar](https://forja-visual.vercel.app), é medido, e não parece gerado.
 
 **O que não está:** que a ferramenta reproduz isso sozinha. O protótipo é N=1 e prova
 **qualidade**, não **generalidade** — foi conduzido por um humano e um orquestrador, com julgamento

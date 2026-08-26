@@ -68,7 +68,9 @@ Formato de toda ficha: **Problema -> Mecanismo -> Custo -> Quando NÃO usar -> P
 
 ## As 16, em uma linha cada
 
-Custo em ordem de grandeza. "Provado" = rodou e foi medido no protótipo 01 (`prototipo-01/`).
+Custo em ordem de grandeza. "Provado" = rodou e foi medido no protótipo 01
+([código](https://github.com/MatheusRibeir098/forja-visual-site), [no
+ar](https://forja-visual.vercel.app)).
 
 | # | Técnica | Custo dominante | Provado |
 |---|---|---|---|

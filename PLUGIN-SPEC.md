@@ -157,7 +157,7 @@ interface VisualBrief {
 ⚠️ **O orçamento é derivado, nunca fixado antes.** O protótipo 01 provou o custo do contrário: teto
 arbitrário no início produziu relevo em meia resolução, crânio com 1/4 dos pontos e pós-processamento
 banido — um site que passava em todas as métricas e não impressionava. Ver o L6 em
-`prototipo-01/.forge/progress.md`.
+[`.forge/progress.md` do site](https://github.com/MatheusRibeir098/forja-visual-site/blob/master/.forge/progress.md).
 
 ---
 
@@ -200,5 +200,7 @@ Não invente conteúdo que já existe:
 - `research/catalogo-tecnicas.md` — as 16 técnicas com mecanismo, e as 9 regras transversais
 - `research/arsenal-visual.md` — panorama de ferramentas, com a coluna "quando NÃO usar"
 - `VISAO.md` — princípios P1–P7, os 5 fatores, a lista de reprovação
-- `prototipo-01/` — a prova de que funciona: `.forge/progress.md` tem os números medidos e as
-  armadilhas encontradas; `src/` tem as 11 técnicas implementadas
+- [`forja-visual-site`](https://github.com/MatheusRibeir098/forja-visual-site) — a prova de que
+  funciona, em repositório próprio e no ar em
+  [forja-visual.vercel.app](https://forja-visual.vercel.app): `.forge/progress.md` tem os números
+  medidos e as armadilhas encontradas; `src/` tem as 11 técnicas implementadas

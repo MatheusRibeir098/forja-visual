@@ -171,9 +171,10 @@ As fases 4 e 5 **já existem** no Forge (`orchestrator`, `dev`, `tester`). O que
 
 ## 5.1 A fase 1 é um **questionário de direção visual** (decidido pelo dono, 2026-08-25)
 
-Origem: o dono olhou o protótipo 01 pronto e disse — *"ficou bom, mas diferente do que eu estava
-pensando; achei que seria algo futurista como o portfolio-3d, esse ficou mais pé no chão. E
-realmente não parece IA."*
+Origem: o dono olhou o [protótipo 01](https://forja-visual.vercel.app) pronto — hoje em repositório
+próprio, [`forja-visual-site`](https://github.com/MatheusRibeir098/forja-visual-site) — e disse:
+*"ficou bom, mas diferente do que eu estava pensando; achei que seria algo futurista como o
+portfolio-3d, esse ficou mais pé no chão. E realmente não parece IA."*
 
 Duas coisas nessa frase, e as duas importam:
 

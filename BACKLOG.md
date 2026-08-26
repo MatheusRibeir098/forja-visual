@@ -68,10 +68,11 @@ inventar — e é o caminho mais curto para um site que não parece de IA.
 **O que precisa ser resolvido antes de implementar:**
 
 - **Formatos:** 3D (`.stl`, `.obj`, `.glb`), imagem (`.png`, `.jpg`, `.webp`), fonte (`.woff2`).
-- **Pipeline de build, não de runtime.** O protótipo 01 provou o caminho: o `.stl` do crânio virou
-  `Int16` pré-processado por `scripts/build-points.ts`, determinístico (sha256 estável), sem decode
-  no navegador. Um asset jogado direto no runtime é o oposto disso. O plugin precisaria de scripts
-  de ingestão equivalentes.
+- **Pipeline de build, não de runtime.** O
+  [protótipo 01](https://github.com/MatheusRibeir098/forja-visual-site) provou o caminho: o `.stl`
+  do crânio virou `Int16` pré-processado por `scripts/build-points.ts`, determinístico (sha256
+  estável), sem decode no navegador. Um asset jogado direto no runtime é o oposto disso. O plugin
+  precisaria de scripts de ingestão equivalentes.
 - **Licença é obrigação real, não formalidade.** A malha do crânio é CC BY 4.0 de `martinjario`: o
   `.stl` fonte vive **fora do repositório** e o crédito é renderizado como `<a>` real no colofão.
   O questionário tem de perguntar **origem e licença** de cada anexo, e a ferramenta tem de
