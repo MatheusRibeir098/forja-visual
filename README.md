@@ -33,6 +33,14 @@ Toda exigência é verificável, e o build reprova quando não é atendida.
 
 ---
 
+## Para quem vai desenvolver o plugin
+
+Se você chegou para **mexer na ferramenta** (não para usá-la), comece por
+**[`HANDOFF.md`](HANDOFF.md)** — ele diz onde o projeto está, o que não pode ser quebrado, onde
+achar cada informação e as armadilhas que já custaram retrabalho.
+
+---
+
 ## Instalação
 
 Precisa do [Claude Code](https://claude.com/claude-code) instalado. Dentro dele, rode:
