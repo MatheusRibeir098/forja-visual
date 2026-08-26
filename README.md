@@ -79,10 +79,10 @@ A medição de FPS roda num Chrome de verdade, com GPU real. Em máquina sem GPU
 
 ```
 1. QUESTIONÁRIO   →  o que você quer, em escolhas concretas
-2. DIVERGÊNCIA    →  três variantes construídas, você mata duas
+2. DIVERGÊNCIA    →  N variantes construídas de verdade, você mata as outras
 3. TÉCNICA        →  quais mecanismos entregam aquela direção
 4. CONSTRUÇÃO     →  subagentes em paralelo, arquivos disjuntos
-5. MEDIÇÃO        →  contraste e FPS reprovam o build
+5. MEDIÇÃO        →  estrutura, contraste e FPS reprovam o build
 ```
 
 ### 1. O questionário
@@ -95,6 +95,26 @@ devolve resposta utilizável.
 Os eixos: tema, temperatura, densidade de efeito, 3D, paleta, referências que você admira — e **o
 que você odeia**, que pesa mais que o resto e vira checagem verificável nos briefings.
 
+No fim ele pergunta mais três coisas:
+
+- **quantas variantes construir** (2 a 5, padrão 3) — cada uma é um hero construído de verdade,
+  então você decide quanto quer gastar de tempo em exploração
+- **um campo livre**, deliberadamente aberto — e ele vem **por último**, nunca antes: depois de
+  escolher, você já tem o vocabulário, e o texto vira precisão em vez de "moderno"
+- **seus arquivos** — modelo 3D, textura, foto, fonte
+
+### Os anexos merecem um parágrafo
+
+Trazer o próprio arquivo é o caminho mais curto para um site que não parece de IA, e o motivo está
+na pesquisa: **asset próprio** é um dos cinco fatores que fizeram o portfólio de referência escapar
+da média. É o que nenhum gerador consegue inventar.
+
+O plugin processa `.stl`, `.obj`, `.glb` e `.png` em **build time**, de forma determinística — o
+mesmo arquivo produz sempre o mesmo derivado. E pergunta a **origem e a licença** de cada um, o que
+não é papelada: quando a licença exige crédito, ele é renderizado como link real e um portão
+reprova o build se esse crédito sumir, for escondido ou ficar dentro de uma seção que alguém possa
+cortar depois.
+
 O **orçamento de bytes é derivado das suas respostas**, nunca fixado antes. Isso não é detalhe: no
 protótipo que originou a ferramenta, um teto arbitrário definido no início produziu relevo em meia
 resolução e pós-processamento banido — um site que passava em todas as métricas e não impressionava
@@ -102,7 +122,7 @@ ninguém.
 
 ### 2. A divergência — o coração da coisa
 
-Três variantes de hero, **construídas e rodando**, nunca descritas em texto. Você escolhe em dois
+As variantes de hero são **construídas e rodando**, nunca descritas em texto. Você escolhe em dois
 níveis: a vencedora, **e quais características das perdedoras sobrevivem**.
 
 Isso não é cortesia. No protótipo 01, duas técnicas de variantes rejeitadas viraram seções inteiras
@@ -118,6 +138,10 @@ mesma família visual e ninguém percebeu até o site estar pronto. Aqui:
 - e os números que decidem se elas realmente divergiram são **medidos do pixel**, não declarados
   por quem as construiu
 
+O teto de variantes não é arbitrário: cada uma precisa de uma âncora distinta, então o limite é
+quantas âncoras existem. Pedir "sem 3D" derruba o teto para 4, porque a âncora *luz* deixa de fazer
+sentido sem objeto tridimensional.
+
 ### 3–5. Técnica, construção e medição
 
 As técnicas são escolhidas de um catálogo indexado **por problema** ("preciso que a transição não
@@ -126,10 +150,16 @@ disjuntos. E a medição é portão, não relatório:
 
 | Portão | Critério | |
 |---|---|---|
-| Contraste | ≥ 7:1, medido **por pixel** | reprova |
+| Contraste | ≥ 7:1, medido **por pixel**, ao longo de **toda a animação** | reprova |
 | FPS | mediana ≥ 60 em GPU real | reprova |
+| Estrutura | seção é pasta, texto é conteúdo, gerado é gerado | reprova |
+| Crédito de licença | link real, fora de qualquer seção | reprova |
 | Bytes | contra o orçamento do brief | informa |
 | build · typecheck · lint · test | verde | reprova |
+
+**"Ao longo de toda a animação" custou caro para entrar aí.** O medidor antes congelava a página e
+fotografava uma pose — e aprovava com 15,77:1 uma página que ficava com 1,13:1 em outro instante do
+mesmo ciclo. Contraste é propriedade da faixa inteira, não de um instante.
 
 ---
 
@@ -142,9 +172,28 @@ plugin/
 │   ├── visual-techniques/  16 técnicas indexadas por problema
 │   └── visual-guardrails/  as proibições, cada uma com o motivo
 ├── agents/                 visual-dev, visual-tester
-├── scripts/                medidores de contraste, FPS, bytes e variantes
-└── templates/site/         o motor pronto: engine, shaders, 32 testes
+├── scripts/                medidores + ingestão de assets + portões
+└── templates/site/         o motor pronto: engine, shaders, 40 testes
 ```
+
+E o site que ele gera **nasce organizado** — uma pasta por seção, texto separado do código,
+arquivos gerados isolados:
+
+```
+src/
+├── engine/            o motor (vem pronto, não se edita)
+├── shaders/           um arquivo por técnica
+├── styles/            o global — nada de seção aqui
+├── content/           o TEXTO, separado da apresentação
+├── sections/<nome>/   index · style · scene · markup
+└── generated/         produzido por script, nunca à mão
+dev/<nome>.html        página isolada, para inspecionar uma técnica de cada vez
+```
+
+Isso não é preferência estética: é o que **torna o paralelismo possível**. A regra da construção é
+arquivos disjuntos — dois devs no mesmo arquivo e o segundo sobrescreve o primeiro. Uma seção por
+pasta garante isso sem negociação. E um portão reprova quem sai do lugar, porque regra sem
+verificação é conselho, e conselho é ignorado quando aperta.
 
 O **template** é o que garante que a qualidade não dependa de sorte: todo site nasce com o mesmo
 motor já provado — um único `requestAnimationFrame`, tier por números, beats de scroll, FBO de
@@ -187,6 +236,22 @@ usar`, e o [panorama de ferramentas](research/arsenal-visual.md) com a coluna qu
 
 **[`VISAO.md`](VISAO.md)** — o projeto por inteiro: problema, princípios, arquitetura, decisões e
 riscos.
+
+---
+
+## Uma decisão que você precisa saber antes de instalar
+
+**Os sites gerados ignoram `prefers-reduced-motion` e animam em qualquer máquina.**
+
+Foi decisão de produto, tomada depois de um site aparecer estático e com o scroll travado para uma
+pessoa que tinha desligado efeitos de animação no Windows. A maioria dos sites simplesmente não
+implementa essa preferência; este passou a fazer o mesmo.
+
+O custo é real e não vale esconder: quem desliga animações por distúrbio vestibular — enjoo,
+tontura — verá movimento. Na prática isso significa que **o plugin não entrega conformidade WCAG
+2.2 AA completa**, ainda que exija contraste de 7:1, mais rigoroso que o próprio AA pede.
+
+Está em um lugar só, comentado, se você quiser reverter no seu site.
 
 ---
 
