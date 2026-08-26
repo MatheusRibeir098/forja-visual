@@ -35,8 +35,8 @@ medidor com escopo diferente? Cópia **read-only e escopada** do script, apagada
 
 | Convenção | Valor |
 |---|---|
-| Variantes da fase 2 | `src/variants/{a,b,c}/index.ts`, cada uma exportando `mountHero(root, engine)` |
-| URLs das variantes | `/dev/a.html`, `/dev/b.html`, `/dev/c.html` (`pnpm dev`) — é por elas que você mede e fotografa |
+| Variantes da fase 2 | `src/variants/<id>/index.ts`, cada uma exportando `mountHero(root, engine)` — `<id>` é `a`, `b`, `c`… até `variantCount` (`brief.variantCount`, 2 a 5) |
+| URLs das variantes | `/dev/<id>.html` para cada `<id>` (`pnpm dev`) — é por elas que você mede e fotografa |
 | Artefatos de controle | `.forge-visual/` na raiz do projeto: `brief.json`, `hates.md`, `variantes.json`, `medicoes/`, `screenshots/` |
 | Config dos medidores | `forge-visual.config.json` na raiz do projeto |
 | Ticker | um só, o do `engine` — `grep -rn "requestAnimationFrame" src/` tem de dar 1 |
@@ -51,6 +51,7 @@ morto a reportar: são registro de rejeição, por desenho.
 | Build · typecheck · lint · test | verde | **reprova** — e aborta o resto |
 | Contraste | **≥ 7:1**, por pixel | **reprova** |
 | FPS | mediana **≥ 60** em GPU real | **reprova** |
+| Crédito de licença e fonte do asset | `check-attribution.ts` — só quando o brief tem `assets` | **reprova** |
 | Bytes | contra o `budget` do brief | **informa — nunca reprova** |
 
 Bytes **informam**. Relate `medido / referência` e siga. Motivo medido: enquanto bytes reprovavam,
@@ -70,21 +71,41 @@ pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-contrast.ts" --project=. --
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-fps.ts"      --project=. --min=60 --runs=3
 ```
 
+**Quando o brief tem `assets`, um quinto portão:** `check-attribution.ts` cobra do HTML
+construído o que a licença obriga — e é a única verificação do plugin que olha `.forge-visual/assets.json`.
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --build
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --rendered   # + DOM vivo
+```
+
+Ele verifica três coisas, e as três reprovam: **(1)** nenhum arquivo de origem (`.stl`, `.obj`,
+`.psd`, `.ttf`…) sob a raiz do site; **(2)** todo `attribution` registrado existe como `<a href>`
+com texto, apontando para a `attributionUrl`; **(3)** esse link **não** tem `<section>`/`<article>`
+como ancestral — que é a forma verificável de "o crédito sobrevive ao corte de qualquer seção".
+
+**Rode com `--rendered` sempre que der.** A checagem estática não vê crédito escondido por CSS
+externo: um colofão sob `opacity: 0` passa no estático e reprova no DOM vivo (opacidade
+**acumulada** pelos ancestrais — `opacity` não é herdada, e ler só a do `<a>` deixa passar).
+Sem `--rendered`, diga no JSON que a terceira verificação não foi feita; não a dê por boa.
+
+Sem `assets` no brief o script sai com `0` dizendo "nada a exigir" — não o rode à toa.
+
 **Fase 2 (divergência), um quarto medidor:** `measure-variant.ts` é quem produz `bgLuminance`,
 `motionCoverage`, `typeScaleRatio` e a `palette` que os checks de colisão comparam — nunca aceite
 esses números de declaração do `visual-dev`; o método está no comentário de topo do próprio
 script. Rode-o **uma vez por variante**, com `--id` e a faixa de luminância pré-atribuída a ela:
 
 ```bash
-pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-variant.ts" --project=. --url=<url da variante> --id=<A|B|C> \
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-variant.ts" --project=. --url=<url da variante> --id=<a|b|c|...> \
   --bg-min=<faixa atribuída> --bg-max=<faixa atribuída> \
   --out=.forge-visual/medicoes/variant-<id>.json
 ```
 
 ⚠️ **Para `measure-variant.ts`, o `--out` da linha de comando é a única coisa que decide o
 destino** — o campo `out` do `forge-visual.config.json` é ignorado por este script de propósito,
-porque as três variantes rodam contra o mesmo projeto e sobrescreveriam uma a outra no mesmo
-caminho default. Sem `--out` explícito por variante, a segunda medição apaga a primeira.
+porque as `variantCount` variantes rodam contra o mesmo projeto e sobrescreveriam uma a outra no
+mesmo caminho default. Sem `--out` explícito por variante, a segunda medição apaga a primeira.
 
 **`pnpm exec` a partir da raiz do site, não `tsx` solto:** o `tsx` é devDependency do **site**, não
 do plugin — invocado de fora, ele pode nem existir no `PATH`. Rode-os **um a um** e leia o código
@@ -106,13 +127,15 @@ de saída de cada um. Eles sobem o preview sozinhos a partir de
 
 | Código | Significado | Emitido por | Seu veredito | O que você pede |
 |---|---|---|---|---|
-| `0` | medido e dentro do critério | os quatro | **PASSOU** neste portão | — |
+| `0` | medido e dentro do critério | os cinco | **PASSOU** neste portão | — |
 | `1` | **reprovou** o piso (contraste/FPS) | contrast, fps | **FALHOU** | correção do valor, com o pior caso e o seletor |
 | `1` | **não foi possível medir** | bundle | **FALHOU** tipo `medicao` | `dist/` ausente ou ilegível — rode o build antes |
-| `1` | **fora da faixa de luminância atribuída** (`--bg-min`/`--bg-max`) | variant | reporte no `variant_card`; a comparação entre as três continua sendo do orquestrador | a variante violou a pré-atribuição — é candidata a re-briefe, não um bug do medidor |
+| `1` | **crédito ausente** ou fonte do asset dentro do repo | attribution | **FALHOU** | é obrigação de licença, não acabamento: o script imprime a marcação exata que falta |
+| `1` | **fora da faixa de luminância atribuída** (`--bg-min`/`--bg-max`) | variant | reporte no `variant_card`; a comparação entre as `variantCount` variantes continua sendo do orquestrador | a variante violou a pré-atribuição — é candidata a re-briefe, não um bug do medidor |
 | `2` | medição inválida: caiu em **SwiftShader** (GPU de software) | fps, variant | **FALHOU** tipo `medicao` | máquina/driver sem GPU acessível. O número medido não descreve usuário nenhum — **não é otimização de código** |
 | `3` | **inconclusivo**: a falha não reproduziu entre execuções, ou a máquina estava disputada | fps, variant | **FALHOU** tipo `medicao` | ⛔ **"isole a máquina e remeça"** — nunca "corte o efeito" |
 | `4` | nada mensurável na página | contrast, variant | **FALHOU** tipo `medicao` | nenhum elemento desenhou glifo, ou o fundo não parou: `--reveal` maior, ou a revelação não terminou |
+| `4` | **nada verificável**: não há HTML construído a ler | attribution | **FALHOU** tipo `medicao` | rode o build antes, ou passe `--build` |
 
 ⚠️ **`bundle` sai com `1` quando falha em medir, não quando estoura o orçamento.** Estourar o
 orçamento sai com `0` e imprime o excedente: bytes **informam**. Tratar o `1` do bundle como
@@ -201,6 +224,8 @@ Rode estas quando a tarefa toca o loop ou o pipeline; são baratas e pegam o que
 - Reduced-motion: dois quadros em instantes diferentes, **idênticos byte a byte**, sem rAF extra.
 - `scrollWidth === clientWidth` em 375 px.
 - `:focus-visible` visível sobre o fundo real da seção.
+- Com `assets` no brief: `grep -rn "STLLoader\|OBJLoader\|GLTFLoader\|DRACOLoader" src/` → **vazio**
+  (asset é processado no build por `ingest-asset.ts`, nunca decodificado em runtime).
 
 ## Escopo
 
@@ -218,10 +243,11 @@ Sua **última mensagem** é o valor de retorno. Retorne exatamente este JSON:
     "build": "ok | falhou",
     "contraste_min": { "valor": 7.93, "pior_caso": "p.relevo__limit", "ok": true },
     "fps": { "mediana": 59.9, "execucoes": [59.9, 59.9, 59.8], "ok": true },
-    "bytes": { "critico_kb": 176.5, "lazy_kb": 2043.0, "referencia_kb": 600, "informativo": true }
+    "bytes": { "critico_kb": 176.5, "lazy_kb": 2043.0, "referencia_kb": 600, "informativo": true },
+    "credito": { "assets_com_credito": 1, "todos_como_link_fora_de_secao": true, "dom_vivo_conferido": true, "ok": true }
   },
   "ambiente": { "renderer": "ANGLE (Intel, Mesa Intel Graphics ...)", "isolada": true, "observacao": "ps limpo; sem disputa de GPU" },
-  "codigos_de_saida": { "measure_contrast": 0, "measure_fps": 3, "measure_bundle": 0, "measure_variant": null },
+  "codigos_de_saida": { "measure_contrast": 0, "measure_fps": 3, "measure_bundle": 0, "measure_variant": null, "check_attribution": 0 },
   "falhas": [{ "tipo": "build|e2e|visual|medicao|acessibilidade", "onde": "seletor ou arquivo", "viewport": "desktop|mobile", "descricao": "erro exato e localizado — o orquestrador não abre a imagem" }],
   "screenshots": ["/caminho/abs/.forge-visual/screenshots/hero-desktop.png"],
   "logs_relevantes": ["só o trecho que importa — nunca o log inteiro"],

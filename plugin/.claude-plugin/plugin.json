@@ -3,7 +3,7 @@
   "name": "forge-visual",
   "displayName": "Forge Visual",
   "version": "0.1.0",
-  "description": "Constroi sites de alto impacto visual em TypeScript puro + Vite + three: questionario de direcao visual, tres amostras reais divergentes, catalogo de tecnicas por mecanismo e medicao que reprova o build (contraste >= 7:1, FPS >= 60 em GPU real).",
+  "description": "Constrói sites de alto impacto visual em TypeScript puro + Vite + three: questionário de direção visual, três amostras reais divergentes, catálogo de técnicas por mecanismo e medição que reprova o build (contraste >= 7:1, FPS >= 60 em GPU real).",
   "author": {
     "name": "MatheusRibeir098"
   },

@@ -1,12 +1,14 @@
 # Backlog — plugin `forge-visual`
 
-Anotações do uso real, a implementar depois. **Nada aqui foi feito ainda.**
+Anotações do uso real. Itens **1**, **1b** e **2** foram implementados em 2026-08-25 — ficam
+registrados abaixo com o que de fato foi entregue, porque o raciocínio continua valendo para quem
+for mexer neles depois.
 
 Ordem não é prioridade — decidir junto com o dono quando for implementar.
 
 ---
 
-## 1. Perguntar quantas variantes construir
+## 1. ✅ FEITO — Perguntar quantas variantes construir
 
 **Origem:** dono, 2026-08-25, testando o plugin pela primeira vez.
 *"Talvez seria legal ele perguntar quantos 'modelos' o usuário quer que ele crie antes do principal
@@ -29,13 +31,29 @@ questionário (fase 1), com o padrão em 3.
 **Vale mostrar o custo na própria pergunta:** cada variante é um hero construído de verdade por um
 subagente, então N variantes custam N× tempo e tokens. Quem escolhe precisa saber disso.
 
-**Arquivos que mudam:** `skills/forge-visual/references/questionario.md` (a pergunta),
-`references/divergencia.md` (hoje assume 3 em vários pontos: atribuição de âncoras, partição do
-catálogo, os seis checks de colisão), `skills/forge-visual/SKILL.md` (fase 2).
+**Entregue:** pergunta P9 do questionário, padrão 3, recusando 1 com o motivo. E uma consequência
+que não estava prevista: **o teto cai para 4 quando `use3D` é falso**, porque a âncora *luz* deixa
+de ser elegível sem objeto tridimensional.
+
+O `divergencia.md` foi generalizado para N: âncoras filtradas por elegibilidade, teto efetivo
+calculado do menor entre âncoras/classes tipográficas/eixos de layout, bandas de luminância para
+N=2..5, e os checks reescritos em termos de **pares** (P = N(N−1)/2). O veredito passou de "contar
+checks falhos" para "menor conjunto de variantes que zera as colisões" — com N=3, um par que falha
+em dois checks agora re-briefa **uma** variante, em vez de refazer as três.
+
+**Recomendação registrada: não ampliar a lista de âncoras.** Elas não são o gargalo — com N=5 as
+classes tipográficas e os eixos de layout já ficam esgotados, e um `hates` contra layout centrado
+derruba o teto para 4. A ordem correta, se um dia quisermos N=6, é ampliar eixos de layout e
+classes tipográficas, depois o catálogo, e só então discutir a sexta âncora.
+
+**Defeito corrigido de quebra:** o check de movimento rodava **sempre**, mesmo quando a âncora
+*movimento* não estava entre as escolhidas (o que acontece com `effectDensity: contida`). Ele
+cobrava do conjunto algo que a pré-atribuição nunca pediu, e falharia sistematicamente. Agora só é
+exigido quando movimento está em jogo.
 
 ---
 
-## 1b. Campo livre + anexos na última rodada de perguntas
+## 1b. ✅ FEITO — Campo livre + anexos na última rodada de perguntas
 
 **Origem:** dono, 2026-08-25, testando o plugin.
 *"Acho que a última rodada de perguntas deveria ser um campo livre para ideias — onde o usuário
@@ -88,7 +106,7 @@ inventar — e é o caminho mais curto para um site que não parece de IA.
 
 ---
 
-## 2. Acentuação da `description` no `plugin.json`
+## 2. ✅ FEITO — Acentuação da `description` no `plugin.json`
 
 Está sem acentos: *"Constroi sites … questionario de direcao visual … tecnicas … medicao"*.
 

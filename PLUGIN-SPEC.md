@@ -146,13 +146,64 @@ interface VisualBrief {
   loves: string[];              // referências que admira
   hates: string[];              // o que rejeita — pesa mais que `loves`
   audience: string;
+
+  /**
+   * Quantas variantes construir na fase 2. Perguntado, não fixado.
+   * PISO 2 — com uma só não existe rejeição, e a rejeição é o mecanismo (P3).
+   * TETO = número de âncoras disponíveis; duas variantes com a mesma âncora
+   * convergem de volta, que é o defeito que a fase 2 existe para evitar.
+   */
+  variantCount: number;         // 2..5, padrão 3
+
+  /**
+   * Campo livre, respondido DEPOIS de todas as escolhas concretas — nunca antes.
+   * Perguntar em aberto a quem não é designer devolve "moderno" (VISAO §5.1);
+   * depois das escolhas a pessoa já tem vocabulário, e o texto vira precisão.
+   * Chega LITERAL aos briefings das fases 2 e 4, como `hates`.
+   */
+  freeForm: string;             // '' quando não respondido
+
+  /** Arquivos trazidos pelo usuário. Ver `BriefAsset` e o aviso abaixo. */
+  assets: BriefAsset[];
+
   budget: {                     // DERIVADO das respostas, não fixado antes (VISAO §5.1)
     criticalKb: number;
     lazyKb: number;
     rationale: string;          // por que estes números, dadas as respostas
   };
 }
+
+interface BriefAsset {
+  path: string;                 // caminho do arquivo na máquina do usuário
+  kind: 'model3d' | 'image' | 'font' | 'other';
+  origin: string;               // de onde veio (autor, site, "próprio")
+  license: string;              // licença declarada pelo usuário
+  attribution: string | null;   // crédito exigido pela licença, se houver
+  estimatedKb: number | null;   // peso previsto DEPOIS do processamento
+}
 ```
+
+### Por que `assets` importa mais do que parece
+
+A §3.1 do `VISAO.md` lista cinco fatores que fizeram o portfólio de referência escapar da média. Um
+deles é **asset próprio**: um `.obj` processado por pipeline próprio, não preset de biblioteca.
+
+Quem traz o próprio modelo 3D está trazendo exatamente aquilo que nenhum gerador consegue inventar —
+é o caminho mais curto para um site que não parece de IA. Por isso `assets` não é conveniência: é
+uma das entradas mais valiosas do brief.
+
+Três regras que vêm junto:
+
+1. **Processamento em build time, nunca em runtime.** O protótipo provou o caminho: o `.stl` do
+   crânio virou `Int16` pré-processado, determinístico (sha256 estável), sem decode no navegador.
+   Asset jogado direto no runtime é o oposto disso.
+2. **Licença é obrigação real.** `origin` e `license` são perguntados, e quando há `attribution` o
+   crédito é renderizado como link real — e **precisa sobreviver ao corte de qualquer seção**.
+   O arquivo fonte fica fora do repositório do site; só o derivado processado entra.
+3. **O asset vale para todas as variantes.** Dar um modelo a uma só seria vantagem arbitrária, e a
+   escolha do usuário deixaria de ser sobre direção visual.
+
+E o peso previsto entra no `budget` — não é descoberto depois.
 
 ⚠️ **O orçamento é derivado, nunca fixado antes.** O protótipo 01 provou o custo do contrário: teto
 arbitrário no início produziu relevo em meia resolução, crânio com 1/4 dos pontos e pós-processamento

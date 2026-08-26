@@ -67,12 +67,14 @@ Estrutura: `src/{engine,sections,shaders,styles,content,generated}` (`engine`, `
 
 | Convenção | Valor |
 |---|---|
-| Variante da fase 2 | `src/variants/{a,b,c}/index.ts` exporta `mountHero(root: HTMLElement, engine: Engine): void` |
+| Variante da fase 2 | `src/variants/<id>/index.ts` exporta `mountHero(root: HTMLElement, engine: Engine): void` — `<id>` é `a`, `b`, `c`… até `variantCount` (`brief.variantCount`, 2 a 5) |
 | Página da variante | `dev/<id>.html`, servida em `/dev/<id>.html` pelo `vite dev` |
 | Ticker | o do `engine`. Nenhum `requestAnimationFrame` novo, nem dentro da sua variante |
 | Artefatos de controle | `.forge-visual/` na raiz do projeto — **leitura**; você só escreve lá se o briefing mandar |
 | Config dos medidores | `forge-visual.config.json` na raiz do projeto |
 | Prints do tester | `.forge-visual/screenshots/` — não é seu, não escreva |
+| Asset do usuário | derivado em `src/generated/assets/`, registro em `.forge-visual/assets.json` — gravados só por `ingest-asset.ts` |
+| Crédito de licença | `<a href>` com texto num colofão global, **fora** de toda `<section>` |
 
 As variantes perdedoras **permanecem** em `src/variants/`, fora do bundle (não importadas). Não
 apague variante alheia para "limpar o repo".
@@ -109,7 +111,10 @@ Se o briefing listar os arquivos que são seus, trate a lista como **fronteira r
 - Havendo agentes em paralelo, **não** rode `pnpm install`/`pnpm add` — dois lockfiles simultâneos
   se corrompem. Falta dep? `pendencias`.
 - Nunca escreva em `src/generated/`, `.forge-visual/` ou saída de medidor que não é sua — é
-  estado compartilhado. Precisa medir? Use cópia read-only e escopada do script.
+  estado compartilhado. Precisa medir? Use cópia read-only e escopada do script. **Única
+  exceção:** `ingest-asset.ts` grava em `src/generated/assets/` e em
+  `.forge-visual/assets.json`, e é o único escritor legítimo dos dois. Rode-o; não escreva
+  esses arquivos à mão.
 - Não deixe temporário solto em `scripts/`: um `_tmp-*.ts` esquecido quebrou o `typecheck` do repo
   inteiro (TS5097, import com extensão `.ts`) e travou os irmãos.
 - `arquivos_alterados` completo e honesto — é como o orquestrador detecta colisão.
@@ -127,6 +132,47 @@ Se o briefing listar os arquivos que são seus, trate a lista como **fronteira r
 - **Prove que a mudança aparece na imagem, não só no código.** O jeito barato é um script offline
   que replica a matemática do shader sobre os assets reais e imprime a distribuição.
 - **Determinismo em build de asset:** rode 2× e compare `sha256`.
+
+## Asset trazido pelo usuário — ingestão, nunca loader
+
+Quando o brief tiver `assets`, eles chegam **já ingeridos**: o derivado está em
+`src/generated/assets/` e o registro em `.forge-visual/assets.json`. Você **consome**, não
+reprocessa.
+
+- **Nunca** importe `STLLoader`, `OBJLoader`, `GLTFLoader` ou `DRACOLoader`. Asset decodificado
+  em runtime é o oposto do que o protótipo 01 provou (regra transversal 4), e a guardrail §4.1
+  reprova por `grep`. O site faz `fetch` + `new Int16Array(...)`, e pronto.
+- O binário de nuvem de pontos é `Int16` little-endian, passo de 14 bytes
+  (`px py pz nx ny nz curvatura`), tudo `/32767`. Os pontos vêm **embaralhados**: qualquer
+  prefixo é amostra uniforme do objeto inteiro — é assim que você escala por tier com **um
+  número** (regra 6), sem caminho de código.
+- Falta ingerir um arquivo? O comando é seu, não do tester:
+
+  ```bash
+  pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/ingest-asset.ts" --project=. \
+    --file=<caminho FORA do repo> --origin="…" --license="…" \
+    --attribution="…" --attribution-url="https://…"      # ou --no-attribution
+  ```
+
+  Ele recusa com código **2** se o arquivo estiver dentro do repositório, e exige resposta
+  explícita sobre crédito. Nunca copie o fonte para dentro do projeto para "facilitar".
+- **`attribution` não nulo é exigência de build.** Renderize o crédito como `<a href>` **com
+  texto**, num colofão global que **não** esteja dentro de nenhuma `<section>`/`<article>` — é
+  assim que ele sobrevive ao corte de qualquer seção. Crédito desenhado no canvas **não conta**:
+  não está no DOM e nenhum portão o vê.
+
+  ```html
+  <footer data-forge-colophon>
+    <li>Malha: <a href="https://…">Crânio por martinjario, CC BY 4.0</a></li>
+  </footer>
+  ```
+
+  Confira antes de entregar:
+  `pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --build`
+- Na fase 2, o asset vale para **todas** as variantes ou para nenhuma — dar o modelo a uma só é
+  vantagem arbitrária, e a escolha do dono deixaria de ser sobre direção visual.
+
+Detalhe, limites de formato e os cinco estados de reprovação do crédito: `visual-guardrails` §4.
 
 ## Qualidade obrigatória
 
@@ -154,6 +200,9 @@ rápido: renderers, color management, `WebGLRenderTarget`) antes de escrever.
 - [ ] Sem `any`, sem `console.log`, sem `catch {}` vazio.
 - [ ] Toda constante não-óbvia com comentário de medição (valor · método · data).
 - [ ] Atenuação por cor, não por alpha. [ ] Reduced-motion verificado.
+- [ ] Asset do usuário: zero loader de malha em `src/`; nenhum arquivo de origem dentro do repo.
+- [ ] Todo `attribution` do brief virou `<a href>` com texto, fora de `<section>`
+      (`check-attribution.ts --project=. --build` → 0).
 - [ ] `typecheck`, `lint`, `test`, `build` rodados no que você tocou.
 - [ ] Nenhum comando git destrutivo, nenhum commit, nenhum temporário solto.
 
@@ -191,9 +240,10 @@ Campos de `medicoes` que você não mediu vão como `null` — **nunca estime um
 
 ## Tarefa de variante (fase 2): um campo a mais
 
-Quando o briefing for de variante (A, B ou C), acrescente **`variant_card`** ao mesmo JSON. Ele é
-o formato que o orquestrador usa para cruzar as três e detectar convergência — a interface está no
-briefing. Duas regras que o tornam válido:
+Quando o briefing for de variante (uma entre `a`, `b`, `c`… até `variantCount`), acrescente
+**`variant_card`** ao mesmo JSON. Ele é o formato que o orquestrador usa para cruzar as
+`variantCount` variantes e detectar convergência — a interface está no briefing. Duas regras que
+o tornam válido:
 
 - **`variant_card.techniques` é o mesmo array de `tecnicas_usadas`.** Não escreva uma segunda
   versão resumida: se os dois divergirem, o card é inválido e a variante é re-briefada.

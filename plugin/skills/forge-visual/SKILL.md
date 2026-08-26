@@ -1,6 +1,6 @@
 ---
 name: forge-visual
-description: Conduz a construção de um site de alto impacto visual em cinco fases — questionário de direção visual, divergência com três amostras reais construídas e medidas, escolha de técnicas por mecanismo, construção com subagentes em paralelo e medição que reprova. Use quando o pedido for "quero um site que impressione", "site com 3D/WebGL", "site que não pareça feito por IA", ou quando o usuário invocar /forge-visual.
+description: Conduz a construção de um site de alto impacto visual em cinco fases — questionário de direção visual, divergência com N amostras reais construídas e medidas, escolha de técnicas por mecanismo, construção com subagentes em paralelo e medição que reprova. Use quando o pedido for "quero um site que impressione", "site com 3D/WebGL", "site que não pareça feito por IA", ou quando o usuário invocar /forge-visual.
 ---
 
 # /forge-visual — condução das cinco fases
@@ -48,7 +48,7 @@ Grave em `.forge-visual/` na raiz do projeto:
 |---|---|---|
 | `brief.json` | 1 | o `VisualBrief` (formato congelado, §"O contrato") |
 | `hates.md` | 1 | cada rejeição do usuário traduzida em **check verificável** |
-| `variantes.json` | 2 | as três `VariantCard` medidas |
+| `variantes.json` | 2 | as `variantCount` `VariantCard` medidas |
 | `direcao.md` | 2 | vencedora + o que sobrevive das perdedoras |
 | `tecnicas.md` | 3 | técnica → problema visual que resolve → custo |
 | `tasks.md`, `progress.md` | 4 | o loop de construção |
@@ -63,8 +63,8 @@ partes conhece não é convenção.
 
 | Convenção | Valor | Quem depende |
 |---|---|---|
-| Variante | `src/variants/{a,b,c}/index.ts` exportando `mountHero(root: HTMLElement, engine: Engine): void` | `visual-dev` (escreve), fase 2 (monta) |
-| Página de variante | `dev/<id>.html` → servida em `/dev/a.html`, `/dev/b.html`, `/dev/c.html` | `visual-tester` (mede e fotografa por URL) |
+| Variante | `src/variants/<id>/index.ts` exportando `mountHero(root: HTMLElement, engine: Engine): void` — `<id>` é `a`, `b`, `c`… até `variantCount` | `visual-dev` (escreve), fase 2 (monta) |
+| Página de variante | `dev/<id>.html` → servida em `/dev/a.html`, `/dev/b.html`, … | `visual-tester` (mede e fotografa por URL) |
 | Artefatos de controle | `.forge-visual/` na raiz do **projeto do usuário** — nunca dentro do plugin | todos |
 | Configuração dos medidores | `forge-visual.config.json` na raiz do projeto (evita repetir argumentos) | os três `measure-*.ts` |
 | Interface do motor | `ENGINE.md` na raiz do projeto (copiado do template) | `visual-dev` — lê antes de escrever `mountHero`/`mountSection` |
@@ -114,7 +114,7 @@ chão?"*, *"muito efeito ou contido?"*, *"com 3D ou sem?"* devolve resposta util
 O roteiro literal — as perguntas, as opções, o que fazer com resposta inútil e com "tanto faz" —
 está em [`references/questionario.md`](references/questionario.md). Leia antes de perguntar.
 
-Eixos obrigatórios (nenhum pode ficar vazio no brief):
+Eixos obrigatórios (nenhum pode ficar vazio no brief — as duas exceções estão marcadas):
 
 | Eixo | Forma |
 |---|---|
@@ -125,6 +125,13 @@ Eixos obrigatórios (nenhum pode ficar vazio no brief):
 | Paleta | escura / clara / neon / monocromática / a definir pela amostra |
 | Referências | o que admira **e o que odeia** — a segunda vale mais |
 | Público e uso | portfólio, produto, evento… — define se o site pode ser lento para carregar |
+| Anexos | arquivos do usuário: caminho, tipo, **origem, licença e crédito** — `[]` é resposta válida |
+| Nº de amostras | 2..5, padrão **3**; piso 2, teto = âncoras disponíveis |
+| Campo livre | aberto — **última pergunta do roteiro**; `''` é resposta válida |
+
+As três últimas linhas são a rodada 3 e têm ordem fixa: **anexos → nº de amostras → campo livre**,
+e o campo livre nunca sobe. Perguntar em aberto antes das escolhas devolve "moderno"; depois delas
+a pessoa já tem vocabulário e o texto vira precisão.
 
 ## `hates` pesa mais que `loves` — e tem que ser usado, não coletado
 
@@ -164,13 +171,101 @@ interface VisualBrief {
   loves: string[];              // referências que admira
   hates: string[];              // o que rejeita — pesa mais que `loves`
   audience: string;
+
+  /**
+   * Quantas variantes construir na fase 2. Perguntado, não fixado.
+   * PISO 2 — com uma só não existe rejeição, e a rejeição é o mecanismo (P3).
+   * TETO = número de âncoras disponíveis; duas variantes com a mesma âncora
+   * convergem de volta, que é o defeito que a fase 2 existe para evitar.
+   */
+  variantCount: number;         // 2..5, padrão 3
+
+  /**
+   * Campo livre, respondido DEPOIS de todas as escolhas concretas — nunca antes.
+   * Chega LITERAL aos briefings das fases 2 e 4, como `hates`.
+   */
+  freeForm: string;             // '' quando não respondido
+
+  /** Arquivos trazidos pelo usuário. */
+  assets: BriefAsset[];
+
   budget: {                     // DERIVADO das respostas, não fixado antes
     criticalKb: number;
     lazyKb: number;
     rationale: string;          // por que estes números, dadas as respostas
   };
 }
+
+interface BriefAsset {
+  path: string;                 // caminho do arquivo na máquina do usuário
+  kind: 'model3d' | 'image' | 'font' | 'other';
+  origin: string;               // de onde veio (autor, site, "próprio")
+  license: string;              // licença declarada pelo usuário
+  attribution: string | null;   // crédito exigido pela licença, se houver
+  estimatedKb: number | null;   // peso previsto DEPOIS do processamento
+}
 ```
+
+Três campos merecem regra própria, abaixo: `variantCount`, `assets` e `freeForm`.
+
+## `variantCount` — perguntado, com piso e teto
+
+**Piso 2.** Com uma variante só não existe rejeição, e a rejeição é o mecanismo pelo qual esta
+ferramenta sai da média (P3). Uma variante é "o agente entregou a primeira ideia plausível" —
+o que o projeto existe para evitar. Quem pedir 1 recebe 2, com o motivo dito.
+
+**Teto = âncoras disponíveis.** Cada variante recebe uma âncora distinta e obrigatória (luz,
+material, tipografia, movimento, espaço). Mais variantes que âncoras significa duas com a mesma
+âncora, que é convergência de volta. São 5 âncoras; com `use3D === false` a luz sai e o teto cai
+para 4 (regra em [`references/divergencia.md`](references/divergencia.md) §1).
+
+**O custo vai dito na pergunta:** cada variante é um hero construído de verdade por um subagente
+próprio e medido antes de ser mostrado — N variantes custam ~N× tempo e tokens, e as conferências
+de colisão crescem por par (3 → 3 pares, 5 → 10). Quem escolhe paga; então quem escolhe precisa
+saber. Sem resposta → 3, declarado como assunção.
+
+## `assets` — a entrada que nenhum gerador inventa
+
+Um `.obj` processado por pipeline próprio é um dos **cinco fatores** que tiraram o portfólio de
+referência da média (`VISAO.md` §3.1). Quem traz o próprio modelo, a própria textura ou a própria
+fonte está trazendo o caminho mais curto para um site que não parece de IA. Por isso `assets` não
+é conveniência de UX: é uma das entradas mais valiosas do brief.
+
+Quatro regras, e nenhuma é opcional:
+
+1. **Origem e licença são perguntadas sempre**, e o roteiro explica ao usuário **por quê** — ver
+   P8 em [`references/questionario.md`](references/questionario.md). `license: "desconhecida"` é
+   registrável, mas vai ao dono antes da fase 4: asset de origem desconhecida não entra em site
+   publicado sem decisão explícita.
+2. **`attribution` não-nulo é obrigação de renderização.** O crédito é um `<a>` real e fica numa
+   região que **sobrevive ao corte de qualquer seção** — se uma tarefa da fase 4 remove ou
+   reorganiza a seção que o continha, o crédito é realocado, nunca perdido. Todo briefing da fase 4
+   que toque essa região carrega a lista de créditos junto.
+3. **Processamento em build time, nunca em runtime**, e o arquivo fonte fica **fora** do
+   repositório do site: só o derivado determinístico entra (no protótipo 01, `.stl` → `Int16` com
+   sha256 estável).
+4. **O anexo vale para todas as variantes da fase 2.** Dar o modelo a uma só seria vantagem
+   arbitrária, e a escolha do usuário deixaria de ser sobre direção visual.
+
+E o peso entra no `budget` **agora**, com `estimatedKb` (tabela por tipo em
+[`references/orcamento.md`](references/orcamento.md)) — não é descoberto com o site pronto.
+`estimatedKb` é o peso do **derivado**, nunca o tamanho do arquivo em disco: o arquivo fonte de
+~20 MB do protótipo virou 670 KB. Quando não dá para estimar antes de processar, é `null` e o `rationale`
+diz qual parcela ficou em aberto. **Não invente número.**
+
+## `freeForm` — última pergunta, e chega literal
+
+A ordem é o mecanismo, não gentileza: perguntar em aberto a quem não é designer devolve "moderno",
+que é a razão de o questionário ser de escolhas. Depois de P1–P9 a pessoa já tem o vocabulário das
+escolhas que fez, e o texto dela vira precisão.
+
+- **Vai inteiro, sem reescrita, sem resumo**, aos briefings das fases 2 e 4 — o mesmo tratamento de
+  `hates.md`. Resumir descarta justamente a parte que não coube em nenhum menu.
+- **Rejeição escrita no campo livre também vira check** em `hates.md`. Duplicar é barato.
+- **Não reabre eixo.** Contradição com uma escolha de P1–P9 é apontada ao usuário, que escolhe uma
+  — nunca resolvida pela média.
+- Sem resposta → `''`. Nunca preenchido com o seu resumo das respostas: um campo livre escrito por
+  você entra na fase 4 como se fosse voz do usuário.
 
 ## O `budget` é derivado — nunca fixado antes
 
@@ -189,6 +284,7 @@ criticalKb = 50 (shell TS+CSS+conteúdo)
            + 20 de folga
 
 lazyKb     = base(audience) × mult(effectDensity) + Σ custo medido dos assets previstos
+                                                  + Σ estimatedKb dos anexos (fonte vai no crítico)
 ```
 
 Três regras que acompanham o número:
@@ -209,7 +305,9 @@ hero é o objeto 3D) + 20 folga. Lazy 1000 KB: base 600 (lançamento com tráfeg
 há malha pesada. Tensão registrada: tráfego pago pediria crítico ≤ 150; o dono aceitou 219 em
 troca do 3D no primeiro quadro."*
 
-**Feche a fase 1** mostrando o brief ao usuário em prosa curta (não o JSON cru) e pedindo aval.
+**Feche a fase 1** mostrando o brief ao usuário em prosa curta (não o JSON cru) e pedindo aval —
+incluindo quantas amostras serão construídas, os anexos com a licença de cada um, e o campo livre
+citado literalmente.
 
 ---
 
@@ -225,11 +323,18 @@ Se você só ler uma parte desta skill com atenção, leia
 [`references/divergencia.md`](references/divergencia.md): lá estão o briefing literal que cada
 subagente recebe, a tabela de âncoras, a partição do catálogo e os checks de colisão.
 
+**N = `variantCount` do brief (2..5, padrão 3), perguntado na fase 1.** Onde este documento diz
+"três", leia N; a mecânica para N ≠ 3 — quais âncoras cabem, como o catálogo é partido e como os
+checks de colisão são feitos par a par — está em
+[`references/divergencia.md`](references/divergencia.md). Os anexos do brief (`assets`) ficam
+disponíveis para **todas** as variantes: dar o modelo a uma só seria vantagem arbitrária, e a
+escolha do usuário deixaria de ser sobre direção visual.
+
 ## O mecanismo, em cinco passos — e um passo zero que é serial
 
-**0. O projeto e o `engine` existem antes das três variantes — e vêm prontos do template.** As
+**0. O projeto e o `engine` existem antes das variantes — e vêm prontos do template.** As
 variantes montam `mountHero(root, engine)`: sem um `engine` já escrito, cada `visual-dev`
-inventa o dele, e você volta a ter três sites em vez de três variantes. `templates/site/` já
+inventa o dele, e você volta a ter N sites em vez de N variantes. `templates/site/` já
 traz o motor provado, então essa tarefa deixou de ser "escrever o motor do zero" e virou uma
 tarefa **serial**, curta, de `visual-dev`, antes do fan-out:
 
@@ -248,18 +353,19 @@ não é bug do medidor.
 É o mesmo erro de sequenciamento da fase 4 ("a amarração é serial, antes do fan-out"), uma fase
 mais cedo.
 
-**1. Pré-atribua, antes de disparar qualquer coisa.** Você escolhe três âncoras distintas
+**1. Pré-atribua, antes de disparar qualquer coisa.** Você escolhe N âncoras distintas
 (**luz**, **material**, **tipografia**, **movimento**, **espaço**) e, para cada variante, fixa
 valores **obrigatórios e distintos** em três dimensões:
 
-| Dimensão | A | B | C |
-|---|---|---|---|
-| Faixa de luminância de fundo | (uma faixa) | (outra) | (outra) |
-| Classe tipográfica | serifada / grotesca / mono / display / condensada — três valores diferentes |
-| Eixo de layout | centrado / assimétrico-esq / assimétrico-dir / grade-editorial / tela-cheia — três valores diferentes |
+| Dimensão | A | B | C | … |
+|---|---|---|---|---|
+| Faixa de luminância de fundo | (uma faixa) | (outra) | (outra) | uma por variante, sem sobreposição |
+| Classe tipográfica | serifada / grotesca / mono / display / condensada — N valores diferentes |
+| Eixo de layout | centrado / assimétrico-esq / assimétrico-dir / grade-editorial / tela-cheia — N valores diferentes |
 
 Se a paleta escolhida na fase 1 travar a luminância (ex.: `escura`), use **sub-faixas** dentro
-dela (0,02–0,06 · 0,08–0,14 · 0,15–0,25) e mantenha as outras duas dimensões distintas. Paleta
+dela (0,02–0,06 · 0,08–0,14 · 0,15–0,25 — divida a faixa em N sub-faixas sem sobreposição) e
+mantenha as outras duas dimensões distintas. Paleta
 fechada não é desculpa para convergir.
 
 **2. Partição do catálogo.** Cada variante recebe um **pool de técnicas exclusivo** e é
@@ -267,7 +373,7 @@ fechada não é desculpa para convergir.
 composite/FBO, sync DOM↔WebGL, ping-pong) é comum a todas — infraestrutura não diferencia imagem.
 Pools por âncora em [`references/divergencia.md`](references/divergencia.md).
 
-**3. Contexto limpo.** Uma invocação de `visual-dev` por variante, **as três na mesma mensagem**
+**3. Contexto limpo.** Uma invocação de `visual-dev` por variante, **todas na mesma mensagem**
 (chamadas em mensagens separadas viram fila). Nenhum subagente vê o briefing, o código ou a
 técnica das irmãs — o briefing dele traz só o próprio pool e a lista do que está proibido.
 
@@ -286,21 +392,21 @@ acabamento, não a direção.
 ⚠️ Medição que sai com **código 3 (inconclusivo)** não é variante reprovada nem variante aprovada:
 é máquina disputada. Isole e remeça — nunca mande cortar efeito por causa de um `3`.
 
-**5. Confira a colisão por número, não por impressão.** Com as três `VariantCard` na mão, rode os
-checks abaixo. **Duas ou mais falhas = as três estão na mesma família** — exatamente o defeito do
+**5. Confira a colisão por número, não por impressão.** Com as N `VariantCard` na mão, rode os
+checks abaixo. **Duas ou mais falhas = as N estão na mesma família** — exatamente o defeito do
 protótipo 01, que só apareceu no fim.
 
 | Check | Critério |
 |---|---|
 | Técnicas | interseção vazia entre os `techniques` com `camada === 'pool'` (a infraestrutura é comum por desenho) |
-| Classe tipográfica | três valores distintos |
-| Eixo de layout | três valores distintos |
-| Luminância de fundo | três faixas (ou sub-faixas) distintas, sem sobreposição |
+| Classe tipográfica | N valores distintos |
+| Eixo de layout | N valores distintos |
+| Luminância de fundo | N faixas (ou sub-faixas) distintas, sem sobreposição |
 | Movimento | `motionCoverage` máx ÷ mín ≥ 3 **e** máx ≥ 0,05 — sem o piso absoluto, `0,0050` vs `0,0166` (razão 3,3, duas páginas praticamente paradas) passaria como divergência |
 | Paleta | no máximo 1 token coincide entre duas variantes, com tolerância — `\|Δr\|+\|Δg\|+\|Δb\| < 24` conta como o mesmo token (`#101318` e `#111419` são a mesma cor) |
 
 **Falhou?** Re-briefe **só a variante que repetiu** o valor de outra (preserve a que apareceu
-primeiro na ordem A→B→C — critério determinístico, não estético), em invocação nova de contexto
+primeiro na ordem alfabética dos ids — critério determinístico, não estético), em invocação nova de contexto
 limpo, com a restrição explicitada. Teto de **2 re-briefes por variante**; na terceira, o
 problema é a âncora, não a execução: troque a âncora.
 
@@ -312,27 +418,31 @@ problema é a âncora, não a execução: troque a âncora.
   alguma — **texto descrevendo como seria**. No protótipo 01 o dono escolheu vendo as três rodarem
   em GPU real; lendo descrições teria escolhido diferente. Se você se pegar escrevendo *"a
   variante B seria…"*, pare: variante que não roda não existe.
-- **Custo:** 3×. Está no desenho, foi decisão do dono, e é justamente com três que o defeito de
-  convergência fica visível.
+- **Custo:** N×, e o usuário já ouviu isso em P9 antes de escolher N. O padrão é 3 porque é onde
+  o defeito de convergência fica visível sem multiplicar o custo por cinco.
 
 ## A escolha do usuário tem dois níveis
 
-Suba as três (`pnpm dev` + as três URLs) e peça que ele abra **no navegador dele, em GPU real**.
+Suba todas (`pnpm dev` + uma URL por variante) e peça que ele abra **no navegador dele, em GPU
+real**.
 O `visual-tester` captura **no máximo 1 print por variante** — registro, não substituto.
 
 Faça exatamente duas perguntas:
 
-1. **"Qual das três continua?"** — resposta A, B ou C.
-2. **"Das duas que morrem, o que sobrevive?"** — apresente **3 a 5 características nomeadas de
+1. **"Qual delas continua?"** — um id.
+2. **"Das que morrem, o que sobrevive?"** — apresente **3 a 5 características nomeadas de
    cada perdedora** (extraídas da `VariantCard` e do resumo do dev: a técnica, o gesto, a cor, o
    tempo), e o usuário marca quais viram seção ou elemento do site final.
 
 O segundo nível não é cortesia: no protótipo 01, duas técnicas das variantes rejeitadas viraram
 seções inteiras do site final.
 
+Com `variantCount === 2` há **uma** perdedora só, e o segundo nível continua valendo — o usuário
+já foi avisado disso em P9.
+
 Grave em `.forge-visual/direcao.md`: a vencedora, cada sobrevivente com origem (`de B`) e destino
 (`vira a seção X`), e o que foi **explicitamente descartado** — o registro de rejeição vale tanto
-quanto o de escolha. As perdedoras **ficam no repositório** em `src/variants/{a,b,c}/`, fora do
+quanto o de escolha. As perdedoras **ficam no repositório** em `src/variants/<id>/`, fora do
 bundle (não importadas): são o registro do fator "rejeição iterada".
 
 ---
@@ -379,10 +489,15 @@ Cada briefing de `visual-dev` carrega, sem exceção:
 2. o `VisualBrief` inteiro;
 3. a direção vencedora e os sobreviventes que essa tarefa realiza;
 4. as técnicas designadas a ela (da fase 3), com o problema que cada uma resolve;
-5. `hates.md` literal + a skill `visual-guardrails`;
+5. `hates.md` literal, o `freeForm` do brief **literal** (sem resumo), e a skill
+   `visual-guardrails`;
 6. critério de aceite Given/When/Then, com **número** (contraste, FPS, dimensão, tempo);
 7. as skills a consultar — **1 ou 2, nomeadas**. Sem isso o subagente carrega várias por
-   precaução e o contexto dele enche sem melhorar o código.
+   precaução e o contexto dele enche sem melhorar o código;
+8. quando a tarefa usa um anexo do brief: o `BriefAsset` inteiro, o comando de ingestão em **build
+   time** e — se `attribution` não for `null` — o crédito exato a renderizar como `<a>`. Tarefa que
+   mexe na região dos créditos recebe a lista de créditos completa, porque **nenhum crédito pode
+   morrer no corte de uma seção**.
 
 ## O erro de sequenciamento que o protótipo 01 quase pagou
 
@@ -421,6 +536,15 @@ pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-contrast.ts" --project=. --
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-fps.ts"      --project=. --min=60
 ```
 
+**Quando `brief.assets` tem algum item com `attribution`, um quinto portão roda junto:**
+`check-attribution.ts` — reprova se o crédito de licença sumiu do HTML construído, ou se o link
+do crédito ficou dentro de uma `<section>`/`<article>` (não sobrevive ao corte da seção). Sem
+`assets` com `attribution` no brief, não há crédito a exigir, e ele não é rodado.
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --build
+```
+
 (`pnpm exec` a partir da raiz do site: o `tsx` é devDependency do site, não do plugin.)
 
 Quem os roda é o `visual-tester`; ele lê os **códigos de saída** (`0` ok · `1` reprovou · `2`
@@ -435,6 +559,7 @@ devs perderam no protótipo 01 por causa de um player de música disputando a GP
 |---|---|---|
 | Contraste | ≥ 7:1, medido **por pixel** | **reprova** |
 | FPS | mediana ≥ 60 em GPU real | **reprova** |
+| Crédito de licença | `check-attribution.ts` — só quando o brief tem `assets` com `attribution` | **reprova** |
 | Bytes | contra o `budget` do brief | **informa** |
 | Build / typecheck / lint / test | verde | **reprova** |
 
@@ -462,13 +587,22 @@ usuário: o que passou, o número de cada portão, e o que ficou de fora com o m
 
 ## Checklist antes de dizer que terminou
 
-- [ ] Todo eixo do questionário preenchido no `brief.json` — nenhum `""`, nenhum `null`.
+- [ ] Todo eixo do questionário preenchido no `brief.json` — as únicas respostas vazias legítimas
+      são `assets: []` e `freeForm: ''`, e as duas foram de fato perguntadas.
 - [ ] Todo item de `hates` tem check verificável em `hates.md`, e `hates.md` foi anexado aos
       briefings das fases 2 e 4.
-- [ ] `budget` derivado das respostas, com `rationale` citando quais respostas, e **re-derivado**
-      após a fase 2 com números medidos.
-- [ ] As três variantes foram **construídas e rodadas**, medidas antes de mostrar, e passaram nos
-      seis checks de colisão.
+- [ ] `variantCount` foi **perguntado** (não assumido em silêncio), está entre 2 e o teto de
+      âncoras, e o custo N× foi dito antes da escolha.
+- [ ] Cada `BriefAsset` tem `path`, `kind`, `origin`, `license` e `attribution`; `estimatedKb` é
+      número justificado ou `null` declarado — nenhum chute.
+- [ ] Todo `attribution` não-nulo está renderizado como `<a>` real, numa região que sobrevive ao
+      corte de seção; nenhum arquivo fonte de anexo entrou no repositório do site.
+- [ ] `freeForm` chegou **literal** aos briefings das fases 2 e 4, e as rejeições contidas nele
+      viraram check em `hates.md`.
+- [ ] `budget` derivado das respostas — incluindo o peso dos anexos —, com `rationale` citando
+      quais respostas, e **re-derivado** após a fase 2 com números medidos.
+- [ ] As `variantCount` variantes foram **construídas e rodadas**, medidas antes de mostrar, e
+      passaram nos seis checks de colisão.
 - [ ] A escolha do usuário foi registrada nos **dois níveis**, com os sobreviventes destinados a
       seções.
 - [ ] Cada técnica em `tecnicas.md` tem problema concreto, mecanismo e custo.

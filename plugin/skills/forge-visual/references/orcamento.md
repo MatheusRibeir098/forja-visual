@@ -30,6 +30,10 @@ Tudo que o navegador baixa **antes do primeiro quadro pintado**. Parcelas medida
 criticalKb = 50 + 25 × famíliasDeFonte + (124 se WebGL no 1º quadro) + 20
 ```
 
+**Fonte trazida pelo usuário (P8, `kind: 'font'`) entra aqui, não no lazy** — ela é pedida no
+primeiro quadro. E é o único anexo cujo peso não precisa de estimativa: `.woff2` já é o formato
+servido, então o número é o tamanho real do arquivo em disco. Meça, não estime.
+
 **A pergunta que decide os 124 KB não é "tem 3D?", é "o 3D está no primeiro quadro?".** São coisas
 diferentes, e é aqui que a tensão entre público e direção se resolve — ver §4.
 
@@ -40,6 +44,7 @@ e o custo real dos assets que a direção exige.
 
 ```
 lazyKb = base(audience) × mult(effectDensity) + Σ custo dos assets previstos
+                                              + Σ estimatedKb dos anexos (P8), menos os de kind 'font'
 ```
 
 ### base(audience)
@@ -74,6 +79,51 @@ mesma resposta de temperatura pode custar 10 KB ou 1,4 MB dependendo da técnica
 isso é assunto da fase 3, não da fase 1. Na fase 1 você estima pela intenção declarada e marca a
 estimativa como tal.
 
+### Anexos do usuário (`assets[]`) — a parcela que muda a ordem de grandeza
+
+Arquivo trazido pelo usuário em P8 **entra na conta agora, na fase 1**. Um modelo 3D próprio pode
+valer mais que toda a base do público, e descobrir isso com o site construído é o inverso do que o
+orçamento existe para fazer.
+
+⚠️ **`estimatedKb` é o peso do derivado, depois do processamento — nunca o tamanho do arquivo em
+disco.** O arquivo fonte do crânio do protótipo 01 tinha ~20 MB e virou **670 KB** de nuvem
+quantizada:
+orçar pelo arquivo inflaria a parcela em ~30× e faria a ferramenta cortar efeito para caber num
+número falso. A única exceção é a fonte — ver §1.
+
+| `kind` | Destino provável | `estimatedKb` | De onde vem o número |
+|---|---|---|---|
+| `model3d` → nuvem de pontos | 45k pontos `Int16` + casco de oclusão | **670** | medido no protótipo 01 |
+| `model3d` → malha renderizada | — | **`null`** | depende da contagem de triângulos e do formato derivado; **não estimável antes de processar** |
+| `image` → par depth + albedo 3200×1800 | relevo em alta (16-bit R+G) | **1440** | medido |
+| `image` → par depth + albedo 1280×720 | relevo em média | **260** | medido |
+| `image` → textura/tile de matéria | grão, papel, metal, 256×256 | **~55** por tile | medido |
+| `image` → foto de conteúdo | galeria, retrato, produto | **fora desta conta** | é conteúdo, tem orçamento próprio — ver abaixo |
+| `font` | `.woff2` servido como está | tamanho real do arquivo — soma no **crítico**, não no lazy | ~25 KB por família variável é a ordem medida |
+| `other` | sem pipeline de ingestão | **`null`** | fica registrado no brief e não é processado |
+
+O destino de um `model3d` ou de uma `image` só é decidido na fase 3 (é a técnica que diz se a malha
+vira nuvem de pontos ou fica malha). Na fase 1 você estima **pela intenção declarada em P1–P4** e
+marca a estimativa como tal — ou usa `null` e diz por quê.
+
+Cinco regras:
+
+1. **`null` é resposta legítima; número inventado não é.** Quando não dá para estimar antes de
+   processar, grave `estimatedKb: null` e escreva no `rationale` qual parcela ficou em aberto e
+   quando ela fecha (fase 2, ao processar o anexo). Um chute no `rationale` envelhece como se
+   fosse medida — o comentário que mentiu já custou uma decisão de densidade neste projeto.
+2. **O arquivo fonte não é servido.** Só o derivado entra no repositório do site; o original fica
+   fora. O orçamento conta o derivado, e só ele.
+3. **Processamento é build time, nunca runtime.** O anexo vira artefato determinístico em build
+   (no protótipo: `.stl` → `Int16` com sha256 estável), sem decode no navegador. Um `.obj` de 20 MB
+   baixado em runtime não é "asset pesado": é site quebrado, e nenhum orçamento conserta isso.
+4. **`attribution` não pesa bytes, mas é obrigação.** Quando não é `null`, o crédito é um `<a>`
+   real e fica numa região que nenhum corte de seção apaga. É desprezível no orçamento e
+   inegociável no site.
+5. **Anexos que somem mais que a base já disparam a regra 2 da §3:** pare e pergunte ao dono
+   **antes** da fase 2, com o número na mão. Ele pode trocar o destino do asset (nuvem em vez de
+   malha) — o que é decisão de arquitetura, não degradação de asset.
+
 ### Fora do orçamento de efeito
 
 **Conteúdo do usuário (fotos, vídeo, PDF) não entra aqui.** Conte à parte, com regra própria
@@ -90,8 +140,9 @@ conteúdo, e é assim que se corta um asset visual para caber uma galeria.
    cada dev "otimiza" por conta própria e a soma das prudências individuais é o protótipo tímido.
 2. **Excedente > 2× a base → pare e pergunte.** Não é reprovação; é sinal de que a direção
    escolhida custa outra ordem de grandeza e o dono precisa saber antes, não depois.
-3. **Re-derive após a fase 2.** A variante vencedora revela os assets reais. Substitua as
-   estimativas pelos números medidos, reescreva o `rationale` e reporte a diferença.
+3. **Re-derive após a fase 2.** A variante vencedora revela os assets reais — e é onde os anexos
+   do usuário são processados de fato. Substitua as estimativas (inclusive os `estimatedKb: null`)
+   pelos números medidos, reescreva o `rationale` e reporte a diferença.
 
 ---
 
@@ -143,3 +194,21 @@ aceitou os 219 KB. Lazy 1450 KB: base 900 (campanha) × 1,6 (densidade alta) + 1
 direção é futurista por shader e luz, não por malha pesada, então não há asset de MB. Re-derivar
 depois da fase 2: se a variante vencedora usar mapa de relevo em alta, somar ~1440 KB e reabrir
 com o dono."*
+
+### Exemplo C — portfólio de escultora, com `.stl` próprio, pé no chão, contido, paleta escura
+
+Anexo declarado em P8: `~/obras/torso.stl`, 18 MB em disco, `origin: "próprio"`,
+`license: "próprio"`, `attribution: null`.
+
+```
+criticalKb = 50 + 25×1 + 124 (a peça É o hero) + 20 = 219
+lazyKb     = 1500 (portfólio) × 0,6 (contida) + 670 (o .stl como nuvem de pontos) ≈ 1570
+```
+
+`rationale`: *"Crítico 219 KB: shell 50 + 1 fonte variável 25 + three 124 (a peça escaneada é o
+primeiro quadro) + folga 20. Lazy 1570 KB: base 1500 (portfólio — o visitante veio ver a obra) ×
+0,6 (densidade contida, a pedido) + 670 do anexo. Os 670 KB são a parcela medida no protótipo 01
+para nuvem de 45k pontos quantizada; os 18 MB do arquivo **não** são servidos — só o derivado
+processado em build entra no repositório. Estimativa condicionada à intenção declarada (peça
+parada, iluminada, sem malha sólida): se a fase 3 decidir malha renderizada em vez de nuvem, esta
+parcela hoje não é estimável e volta como número medido na re-derivação da fase 2."*

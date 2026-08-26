@@ -80,6 +80,20 @@
     "typeScope": "viewport",
     "//shot": "Caminho do print do quadro em repouso. SEM PADRÃO — sem este campo, nenhuma imagem é gravada. Imagem é o item mais caro do loop de orquestração; quem captura print para o dono é o `visual-tester`.",
     "shot": ".forge-visual/screenshots/variant-rest.png",
-    "//bgMin-bgMax": "NÃO ponha a faixa de luminância aqui. Ela é pré-atribuída POR VARIANTE (tabela §2 do divergencia.md) e este arquivo é compartilhado pelas três: passe `--bg-min` e `--bg-max` na linha de comando de cada variante."
+    "//bgMin-bgMax": "NÃO ponha a faixa de luminância aqui. Ela é pré-atribuída POR VARIANTE (tabela §2 do divergencia.md) e este arquivo é compartilhado por todas: passe `--bg-min` e `--bg-max` na linha de comando de cada variante."
+  },
+
+  "//assets": "seção lida por ingest-asset.ts e check-attribution.ts, quando o brief tem `assets`. Nenhum campo aqui é obrigatório — os dois scripts também aceitam a flag de linha de comando equivalente, que tem precedência sobre este arquivo.",
+  "assets": {
+    "//outDir": "Onde ingest-asset.ts grava o derivado processado do asset do usuário, relativo à raiz do site. Padrão: `src/generated/assets`. Equivalente em CLI: `--out-dir`.",
+    "outDir": "src/generated/assets",
+    "//points": "Contagem alvo de pontos ao ingerir malha 3D (.stl/.obj/.glb) como nuvem de pontos. Padrão: 45000. Equivalente em CLI: `--points`.",
+    "points": 45000,
+    "//seed": "Semente do shuffle determinístico da nuvem de pontos — os pontos saem embaralhados para que qualquer prefixo seja amostra uniforme do objeto inteiro. Padrão: 0x5ca1ab1e. Equivalente em CLI: `--seed`.",
+    "seed": 1554098974,
+    "//maxSize": "Lado máximo, em px, para onde uma imagem é reduzida por média de área. Padrão: 2048. Equivalente em CLI: `--max-size`.",
+    "maxSize": 2048,
+    "//buildCommand": "Comando que check-attribution.ts roda quando `dist/` está ausente e a flag `--build` foi passada. Padrão: `pnpm build`. Equivalente em CLI: `--build-cmd`.",
+    "buildCommand": "pnpm build"
   }
 }

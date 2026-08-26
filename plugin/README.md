@@ -41,7 +41,12 @@ skills/visual-techniques/      16 técnicas indexadas por problema + as 9 regras
 skills/visual-guardrails/      lista de reprovação, armadilhas medidas, portões
 agents/visual-dev.md           escreve todo o código do site
 agents/visual-tester.md        valida por medição; emite PASSOU/FALHOU
-scripts/measure-*.ts           medidores portáteis (contraste, FPS, bytes)
+scripts/measure-bundle.ts      bytes de dist/ contra o budget do brief (informa, não reprova)
+scripts/measure-contrast.ts    contraste WCAG por pixel (reprova < 7:1)
+scripts/measure-fps.ts         FPS/GPU-ms em GPU real (reprova mediana < 60)
+scripts/measure-variant.ts     bgLuminance, motionCoverage, typeScaleRatio de uma variante (fase 2)
+scripts/ingest-asset.ts        processa um asset do usuário em build time (derivado determinístico)
+scripts/check-attribution.ts   crédito de licença e ausência de arquivo fonte no repo (reprova)
 ```
 
 **Fonte única das 9 regras transversais:** `skills/visual-techniques/references/regras-transversais.md`.
@@ -72,6 +77,8 @@ cd /caminho/do/site
 pnpm exec tsx <plugin>/scripts/measure-bundle.ts   --project=. --brief=.forge-visual/brief.json
 pnpm exec tsx <plugin>/scripts/measure-contrast.ts --project=. --min=7
 pnpm exec tsx <plugin>/scripts/measure-fps.ts      --project=. --min=60 --runs=3
+pnpm exec tsx <plugin>/scripts/measure-variant.ts  --project=. --url=<url da variante> --id=<id> \
+  --bg-min=<faixa atribuída> --bg-max=<faixa atribuída> --out=.forge-visual/medicoes/variant-<id>.json
 ```
 
 Dentro de uma skill ou de um agente do plugin, `<plugin>` é `${CLAUDE_PLUGIN_ROOT}` (a substituição
@@ -98,12 +105,34 @@ GPU causada por um player de música.
 
 O `bundle` sai com `0` quando estoura o orçamento: **bytes informam, não reprovam.**
 
+## Asset do usuário: ingestão e crédito
+
+Quando `brief.assets` traz um arquivo do usuário (modelo 3D, imagem, fonte…), dois scripts a mais
+entram no fluxo — nenhum dos dois é medidor de FPS/contraste, e os dois processam em build time,
+nunca em runtime:
+
+```bash
+pnpm exec tsx <plugin>/scripts/ingest-asset.ts --project=. --file=<caminho FORA do repo> \
+  --origin="…" --license="…" --attribution="…" --attribution-url="https://…"   # ou --no-attribution
+
+pnpm exec tsx <plugin>/scripts/check-attribution.ts --project=. --build
+pnpm exec tsx <plugin>/scripts/check-attribution.ts --project=. --rendered   # + opacidade acumulada no DOM vivo
+```
+
+- **`ingest-asset.ts`** recebe o arquivo do usuário e grava o derivado determinístico (`sha256`
+  estável) em `src/generated/assets/` mais o registro em `.forge-visual/assets.json`. Recusa com
+  código `2` se `--file` estiver dentro do repositório do site.
+- **`check-attribution.ts`** é o portão que reprova quando o crédito de licença some do HTML
+  construído, ou quando o link do crédito fica dentro de uma `<section>`/`<article>` (não
+  sobrevive ao corte da seção). Só é exigido quando o brief tem `assets` com `attribution`.
+  Saídas: `0` ok · `1` reprovou · `4` nada mensurável (sem HTML construído a ler).
+
 ## Convenções do projeto gerado
 
 | Convenção | Valor |
 |---|---|
-| Variante da fase 2 | `src/variants/{a,b,c}/index.ts` exporta `mountHero(root, engine)` |
-| Página da variante | `dev/<id>.html` → `/dev/a.html`, `/dev/b.html`, `/dev/c.html` |
+| Variante da fase 2 | `src/variants/<id>/index.ts` exporta `mountHero(root, engine)` — `<id>` é `a`, `b`, `c`… até `variantCount` (2 a 5) |
+| Página da variante | `dev/<id>.html` → `/dev/a.html`, `/dev/b.html`… uma por variante |
 | Artefatos de controle | `.forge-visual/` na raiz do projeto do usuário |
 | Config dos medidores | `forge-visual.config.json` na raiz do projeto |
 | Interface do motor | `ENGINE.md` na raiz do projeto (copiado do template) |

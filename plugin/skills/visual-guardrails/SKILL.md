@@ -1,6 +1,6 @@
 ---
 name: visual-guardrails
-description: Proibicoes, regras verificaveis e armadilhas medidas para construir site de alto impacto visual. Carregue SEMPRE antes de escrever ou validar codigo visual — define o que reprova a entrega e por que, os portoes de medicao e as pegadinhas que ja custaram retrabalho.
+description: Proibicoes, regras verificaveis e armadilhas medidas para construir site de alto impacto visual. Carregue SEMPRE antes de escrever ou validar codigo visual — define o que reprova a entrega e por que, os portoes de medicao, as regras de ingestao de asset do usuario (fonte fora do repo, credito de licenca como link real) e as pegadinhas que ja custaram retrabalho.
 ---
 
 # Visual Guardrails — o que reprova, e por quê
@@ -280,12 +280,165 @@ Erro de build fora da sua fronteira → `pendencias`, e siga.
 
 ---
 
-## 4. Portões — o que reprova e o que apenas informa
+## 4. Asset trazido pelo usuário — três regras, e o portão que as cobra
+
+Um dos cinco fatores que tiraram o portfólio de referência da média (`VISAO.md` §3.1 ④) é
+**asset próprio**: um `.obj` de 20 MB processado por um pipeline escrito para ele — normais por
+Newell, curvatura, downsample por voxel, shuffle determinístico, quantização `Int16`. Não é um
+preset. Quem traz o próprio modelo está trazendo aquilo que nenhum gerador inventa.
+
+⚠️ **Esta seção não repete o defeito do item 7 do backlog.** Lá existe uma proibição (texto
+dentro do canvas) que **nenhum medidor acusa** — e proibição sem portão é obedecida errado: o
+agente contorna a letra e reproduz o problema com outro nome. Cada regra abaixo vem com o
+comando que a verifica e o código de saída que ela produz.
+
+O portão é `scripts/check-attribution.ts`, e ele **reprova**:
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --build
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-attribution.ts" --project=. --rendered
+```
+
+Saídas: `0` em ordem · `1` reprovou · `4` nada verificável (não há HTML construído a ler).
+
+### 4.1 Nenhum asset do usuário é decodificado em runtime
+
+**Por quê:** é a regra transversal 4 na forma mais cara e mais rentável. No protótipo 01 o
+`.stl` do crânio virou binário `Int16` que o navegador lê com um `fetch` e um `new Int16Array` —
+**zero decodificador embarcado**, zero trabalho no primeiro quadro. Um `GLTFLoader` no bundle
+paga parser, e paga de novo em cada visita.
+
+**No lugar:** `scripts/ingest-asset.ts`, no build.
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/ingest-asset.ts" --project=. \
+  --file=~/modelos/cranio.stl --origin="martinjario (Thingiverse)" --license="CC BY 4.0" \
+  --attribution="Malha do crânio por martinjario, CC BY 4.0" \
+  --attribution-url="https://www.thingiverse.com/thing:xxxxx" --points=45000
+```
+
+**Verificação:**
+`grep -rn "STLLoader\|OBJLoader\|GLTFLoader\|DRACOLoader\|examples/jsm/loaders" src/` → **vazio**.
+
+**Reprova quando:** qualquer loader de malha aparece em `src/`, ou um `.stl`/`.obj`/`.glb` é
+buscado por `fetch` em tempo de execução.
+
+### 4.2 O arquivo fonte não entra no repositório do site
+
+**Por quê:** o fonte é pesado, é reescrito inteiro a cada exportação (diff inútil, repo que só
+cresce) e quase sempre carrega licença de terceiro colada nele. No protótipo 01 a malha do
+crânio é CC BY 4.0 de `martinjario`: o `.stl` vive **fora** do repositório e só a nuvem `Int16`
+entra.
+
+**Verificação, dois pontos:**
+- na entrada — `ingest-asset.ts` sai com **código 2** se `--file` apontar para dentro de
+  `--project`, antes de processar qualquer byte;
+- no build — `check-attribution.ts`, verificação 1, varre a raiz do site (fora de
+  `node_modules/`, `dist/`, `.git/`, `.forge-visual/`).
+
+**Reprova quando:** existe sob a raiz um arquivo com extensão de origem (`.stl`, `.obj`, `.glb`,
+`.gltf`, `.fbx`, `.ply`, `.blend`, `.psd`, `.tif`, `.exr`, `.hdr`, `.ttf`, `.otf`…) **ou** um
+arquivo com o `sha256` de um fonte registrado — renomear não engana o portão. A única isenção é
+o derivado *verbatim* que a própria ingestão gravou (`.jpg`, `.webp`, `.woff2`), reconhecido por
+caminho **e** hash.
+
+### 4.3 Com `attribution`, o crédito é link real e sobrevive ao corte de qualquer seção
+
+**Por quê:** o crédito de uma licença não é acabamento — sem ele o site publica obra de terceiro
+em desacordo com a licença que o autor escolheu. E "sobrevive ao corte" não é zelo: seções são
+cortadas e reordenadas o tempo todo durante a construção, e um crédito que morava dentro da
+seção cortada some sem que ninguém perceba.
+
+**A forma verificável de "sobrevive ao corte de qualquer seção":** o link do crédito **não pode
+ter nenhuma `<section>`, `<article>` ou `[data-forge-section]` como ancestral**. Fora de seção =
+colofão global = sobrevive a qualquer corte. Não é preciso simular o corte de cada seção — a
+ausência de ancestral de seção é o mesmo resultado, e é uma consulta.
+
+**O que conta como crédito**, e cada item é uma reprovação própria:
+
+| Estado | Reprova por |
+|---|---|
+| `sem-link` | não existe `<a href>` apontando para a `attributionUrl` registrada |
+| `link-sem-texto` | o `<a>` existe mas não tem texto — link sem texto não credita ninguém |
+| `texto-do-credito-ausente` | o texto registrado não aparece no link nem nos **2** elementos que o contêm |
+| `dentro-de-secao` | o link só existe dentro de `<section>`/`<article>` — some com ela |
+| `escondido` | `hidden`, `aria-hidden="true"` ou `display:none`/`visibility:hidden` inline |
+
+Marcação que passa (a barra final da URL, `&nbsp;` e acento são normalizados antes de comparar):
+
+```html
+<footer data-forge-colophon>
+  <li>Fundo: <a href="https://…">Papel de parede do Hyprland (BSD-3-Clause)</a></li>
+</footer>
+```
+
+**Crédito desenhado dentro do canvas não conta.** É a mesma armadilha do item 7 do backlog: texto
+em WebGL não está no DOM, e nem este portão nem o `measure-contrast` o enxergam. Crédito é DOM,
+sempre.
+
+**A checagem estática não vê crédito escondido por CSS externo.** `--rendered` abre o site no
+Chrome e confere o mesmo link no DOM vivo: caixa com área, sem `display:none`/`visibility:hidden`
+em nenhum ancestral, e **opacidade acumulada** ao longo da cadeia acima de 0,05. Este último é a
+§3.5 aplicada à atribuição: `opacity` **não é herdada**, então ler só a do `<a>` deixa passar um
+colofão inteiro apagado por um ancestral. Medido: um crédito sob `.colofao { opacity: 0 }` passa
+na checagem estática e reprova em `--rendered` com opacidade acumulada `0.000`.
+
+### 4.4 Determinismo do derivado é portão, não promessa
+
+**Por quê:** é a verificação da regra transversal 4 (`sha256` 2×). Um derivado que muda sozinho
+invalida cache do navegador, polui todo diff e transforma "pré-processado" em "recomputado com
+outro nome".
+
+**Verificação:** `ingest-asset.ts` roda o pipeline **duas vezes no mesmo processo** e compara o
+`sha256` — por padrão, sem flag. Divergência aborta com código 1 e é defeito do script, não do
+arquivo do usuário: reporte em `pendencias`.
+
+**Reprova quando:** `--no-verify` foi usado e ninguém conferiu à mão (`sha256sum` do derivado
+após duas ingestões). `--no-verify` existe para asset grande demais para processar duas vezes; é
+o único caso.
+
+### 4.5 O peso do derivado entra no orçamento **antes**, não é descoberto depois
+
+O `estimatedKb` do `BriefAsset` é o **gzip do derivado**, na mesma unidade do `measure-bundle`, e
+é a ingestão que o produz. Um modelo do usuário muda a conta do `budget` (spec §5) — some ao
+orçamento derivado na fase 1, não à surpresa da fase 5. Medido nos testes de ingestão: uma
+imagem de 13.862 KB virou 306 KB de derivado; uma nuvem de 12.000 pontos pesa 160 KB gzip, e a
+mesma malha a 45.000 pontos pesa ~600 KB — a contagem de pontos **é** a alavanca do orçamento.
+
+Bytes continuam **informando**, nunca reprovando (§5 abaixo). O que reprova aqui é o crédito.
+
+### 4.6 O asset do usuário vale para **todas** as variantes
+
+**Por quê:** dar o modelo a uma variante só é vantagem arbitrária — a escolha do dono deixaria de
+ser sobre direção visual e passaria a ser sobre quem ganhou o brinquedo (spec §5, regra 3).
+
+**Verificação:** `grep -l "<id-do-asset>" src/variants/*/index.ts` → **0 ou N**, nunca um número
+no meio.
+
+### 4.7 O que a ingestão **não** faz — limite declarado, não omissão
+
+Ler isto antes de prometer ao usuário:
+
+- **`.jpg` e `.webp` são copiados verbatim.** Assinatura e dimensões são conferidas; não há
+  decodificador de JPEG/WebP no Node sem dependência. **Sem redução e sem remoção de metadado —
+  se o arquivo tem EXIF, o EXIF vai para o site, GPS incluso.** Peça o `.png` quando isso importar.
+- **`.png` é processado de verdade:** decodificado (inclusive paleta e 16 bits), reduzido por
+  média de área até `--max-size` (padrão 2048 px) e reescrito com **só** IHDR/IDAT/IEND. PNG
+  entrelaçado (Adam7) é recusado com mensagem.
+- **`.woff2` é verbatim.** Já é Brotli e já é o formato final da web; o único ganho restante
+  seria subconjunto de glifos, que é projeto próprio.
+- **`.glb`**: glTF 2.0 autocontido, sem Draco/meshopt/`KHR_mesh_quantization`, sem acessor
+  esparso, sem buffer externo. Fora disso, recusa com mensagem — nunca malha degradada em silêncio.
+- **Não há pipeline de relevo/heightmap.** O `build-relief.ts` do protótipo 01 não foi portado.
+
+## 5. Portões — o que reprova e o que apenas informa
 
 | Portão | Critério | Natureza |
 |---|---|---|
 | Contraste | **≥ 7:1**, medido **por pixel** | **reprova** |
 | FPS | mediana **≥ 60** em GPU real (renderer registrado) | **reprova** |
+| Crédito de licença | todo `attribution` registrado como link real, com texto, fora de toda seção (§4.3) | **reprova** |
+| Fonte fora do repo | nenhum arquivo de origem sob a raiz do site (§4.2) | **reprova** |
 | Build · typecheck · lint · test | verde | **reprova** |
 | Bytes | contra o `budget` derivado do brief | **informa** |
 
@@ -301,7 +454,7 @@ vermelho vira critério na cabeça do próximo leitor.
 
 ---
 
-## 5. Checklist antes de entregar
+## 6. Checklist antes de entregar
 
 - [ ] Canvas WebGL é `#gl`, um só (`document.querySelector('#gl') instanceof HTMLCanvasElement`).
 - [ ] Zero import de `postprocessing`, `EffectComposer`, `drei`, GSAP, Lenis, Motion.
@@ -313,4 +466,8 @@ vermelho vira critério na cabeça do próximo leitor.
 - [ ] Toda constante não-óbvia tem comentário com valor, método e data da medição.
 - [ ] Atenuação por cor, não por alpha; elemento revelado por clip-path tem `opacity` derivada.
 - [ ] Contagem de amostras justificada em **pixels cobertos por passo**.
+- [ ] Asset do usuário passou por `ingest-asset.ts`; zero loader de malha em `src/`.
+- [ ] Nenhum arquivo de origem (`.stl`, `.obj`, `.psd`, `.ttf`…) sob a raiz do site.
+- [ ] Todo `attribution` do `.forge-visual/assets.json` é `<a href>` com texto, fora de `<section>`.
+- [ ] `check-attribution.ts --project=. --build` saiu com 0.
 - [ ] Nenhum `git reset`/`checkout --`/`stash`/`clean`; nenhum commit.
