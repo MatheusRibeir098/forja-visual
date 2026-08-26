@@ -50,7 +50,7 @@ import { FULLSCREEN_TRIANGLE_VERTEX } from '@/shaders/glsl';
  * - `uFilmicStrength`  0–1, mistura entre identidade e a curva em S
  * - `uVignetteStrength` 0–1, força do escurecimento de borda
  * - `uGrainAmount`     amplitude do grão, em fração de canal (0–1)
- * - `uGrainSeed`       muda por quadro quando animado; 0 sob reduced-motion
+ * - `uGrainSeed`       muda por quadro quando animado; 0 com o grão congelado
  */
 export const gradeFragment: string = /* glsl */ `
 precision highp float;

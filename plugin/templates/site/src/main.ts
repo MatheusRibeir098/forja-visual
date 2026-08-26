@@ -82,10 +82,17 @@ import type { Engine } from '@/engine';
  *
  * Nenhum dos dois é um `if` no fim do arquivo. O tier chega às seções como
  * **números** (dpr, escala de FBO, passos de ray march, portão do bloom —
- * `engine/tier.ts`) e `prefers-reduced-motion` troca o **frameloop** para
- * `demand` dentro de `createEngine`: o quadro passa a ser pedido, não
- * contínuo. Aqui os dois só são publicados no `<html>`, para o CSS os ler —
- * nunca uma segunda detecção, que poderia divergir do que o renderer usa.
+ * `engine/tier.ts`). Aqui os dois só são publicados no `<html>`, para o CSS os
+ * ler — nunca uma segunda detecção, que poderia divergir do que o renderer usa.
+ *
+ * Sobre movimento reduzido, e sem meias palavras: **este motor ignora
+ * `prefers-reduced-motion: reduce`**. O site anima em qualquer máquina, por
+ * decisão de produto do dono; `engine.gl.reducedMotion` é sempre `false`, o
+ * ticker fica em `always` e o grão do passe de grade continua andando. A
+ * decisão, o custo para quem tem distúrbio vestibular e as três linhas que a
+ * revertem estão em `engine/tier.ts`, na declaração de `reducedMotion`. O
+ * `data-motion` publicado abaixo diz a verdade sobre o que o motor está
+ * fazendo — não sobre o que o sistema pediu.
  */
 
 /** Assinatura única de seção. O retorno (handle ou `void`) não interessa ao boot. */
@@ -100,6 +107,15 @@ type MountFn = (root: HTMLElement, engine: Engine) => unknown;
  *
  *   import { mountSection as mountHero } from '@/sections/hero';
  *   const MOUNTS = [['hero', mountHero]] as const;
+ *
+ * **Uma seção = uma pasta** em `src/sections/<nome>/`, com `<nome>` igual ao
+ * `id` da `<section>` no `index.html` e à chave daqui. Não é organização por
+ * gosto: a fase 4 constrói com três ou quatro devs em paralelo e a regra que os
+ * mantém vivos é *arquivos disjuntos* — uma pasta por seção garante interseção
+ * vazia sem ninguém negociar caso a caso. O texto da seção vem de
+ * `src/content/<nome>.ts`, tipado, nunca escrito no markup.
+ * `src/sections/exemplo/` é o molde; `src/sections/README.md` tem a tabela do
+ * que vai em cada arquivo, e `check-structure.ts` reprova quem sair dela.
  *
  * Seção sem JavaScript nenhum (CSS scroll-driven, markup estático) não entra
  * nesta lista — e é a melhor seção que existe quando ela dá conta.

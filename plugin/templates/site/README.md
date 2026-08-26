@@ -18,27 +18,34 @@ Depois de copiar, ajuste em cinco minutos: `name`/`description` do `package.json
 ## Leia isto antes da primeira cena
 
 **[`ENGINE.md`](./ENGINE.md)** — a interface `Engine` inteira: como inscrever no ticker, ler
-progresso de beat, receber o tier como número, lidar com `prefers-reduced-motion` e — o mais
-importante — **desenhar sem apagar as seções vizinhas**. Quem pula esse documento reescreve o
+progresso de beat, receber o tier como número, o que a §6 decidiu sobre `prefers-reduced-motion`
+(ele é **ignorado**, e o custo disso está escrito lá) e — o mais importante — **desenhar sem
+apagar as seções vizinhas**. Quem pula esse documento reescreve o
 motor por engano.
 
 O comentário de topo de `src/main.ts` traz A REGRA DO CANVAS na versão longa.
 
 ## O que vem pronto
 
-|                        |                                                                                                                                               |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/engine/`          | `gl`, `ticker`, `tier`, `beats`, `damp`, `pointer`, `composite`, `domSync`, `frame` e o `createEngine()` de `index.ts`                        |
-| `src/engine/*.test.ts` | os testes de `beats`, `damp`, `pointer` e `domSync` — parte do valor, não enfeite                                                             |
-| `src/shaders/`         | `glsl.ts` (triângulo de tela cheia, `coverUv`, `linearToSrgb`), `thresholdMask.ts`, `grade.ts`, `domPlane.ts`                                 |
-| `src/styles/`          | reset, camadas CSS, posicionamento do canvas e tokens **sem cor decidida**                                                                    |
-| `src/main.ts`          | boot com `MOUNTS` vazio e a regra do canvas escrita por extenso                                                                               |
-| config                 | `package.json`, `tsconfig` (strict), `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `.prettierrc`, `.npmrc`, `pnpm-workspace.yaml` |
+|                         |                                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/engine/`           | `gl`, `ticker`, `tier`, `beats`, `damp`, `pointer`, `composite`, `domSync`, `frame` e o `createEngine()` de `index.ts`                        |
+| `src/engine/*.test.ts`  | os testes de `ticker`, `beats`, `damp`, `pointer` e `domSync` — parte do valor, não enfeite                                                   |
+| `src/shaders/`          | `glsl.ts` (triângulo de tela cheia, `coverUv`, `linearToSrgb`), `thresholdMask.ts`, `grade.ts`, `domPlane.ts`                                 |
+| `src/styles/`           | reset, camadas CSS, posicionamento do canvas e tokens **sem cor decidida**                                                                    |
+| `src/main.ts`           | boot com `MOUNTS` vazio e a regra do canvas escrita por extenso                                                                               |
+| `src/sections/exemplo/` | molde de seção: `index.ts` (`mountSection`), `markup.ts` e `style.css` — fora do `MOUNTS`, removível                                          |
+| `src/content/`          | `index.ts` (texto do site e colofão) e `exemplo.ts` — o molde de cópia tipada                                                                 |
+| `dev/exemplo.*`         | a página de inspeção da seção-molde, servida em `/dev/exemplo.html`                                                                           |
+| `README.md` por pasta   | `sections/`, `content/`, `generated/`, `scripts/`, `dev/` — o que vai e o que não vai em cada uma                                             |
+| config                  | `package.json`, `tsconfig` (strict), `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `.prettierrc`, `.npmrc`, `pnpm-workspace.yaml` |
 
 ## O que **não** vem — e é você quem decide
 
-Seções, conteúdo, variantes de hero, assets, fontes, paleta e tipografia. O template não impõe
-estética: se removê-lo faria um site deixar de ser _aquele_ site, não está aqui.
+Seções de verdade, conteúdo, variantes de hero, assets, fontes, paleta e tipografia. O template
+não impõe estética: se removê-lo faria um site deixar de ser _aquele_ site, não está aqui. O que
+vem é o **molde vazio** de uma seção (`src/sections/exemplo/`), que existe para dizer onde os
+arquivos moram — e é para ser apagado assim que a primeira seção real nascer.
 
 ⚠️ **A paleta em `src/styles/tokens.css` é placeholder gritante de propósito** (magenta e
 ciano). Enquanto ela não for trocada pela paleta do brief, o portão de contraste
@@ -47,23 +54,68 @@ tipográficas também são placeholder (stacks do sistema): o site auto-hospeda 
 brief em `public/fonts/`, com `@font-face` próprio e subset latin. Nenhuma chamada de rede a
 fonte em runtime.
 
-## Estrutura esperada do site
+## Onde cada coisa mora — a estrutura, e por que ela é obrigatória
 
 ```
-src/engine/     motor (já vem)      src/sections/<id>/index.ts   uma pasta por seção
-src/shaders/    shaders genéricos   src/variants/{a,b,c}/        variantes de hero da fase 2
-src/styles/     base + tokens       src/content/                 texto, separado do markup
-dev/            páginas de inspeção src/generated/               saída de script, não editar à mão
-scripts/        build de asset      e2e/                         runner de aceite
+src/
+├── engine/            motor, vem do template — NÃO se edita
+├── shaders/           GLSL cru; um arquivo por técnica, nome do mecanismo
+├── styles/            tokens, base, tipografia — o global, nada de seção
+├── content/           TEXTO tipado, um arquivo por seção + index (site/colofão)
+├── sections/
+│   └── <nome>/        index.ts (mountSection) · style.css · markup.ts · scene.ts
+├── variants/<id>/     variantes de hero da fase 2 (index.ts → mountHero)
+├── generated/         saída de script — nunca editado à mão
+└── main.ts            monta as seções na ordem do documento
+
+dev/<nome>.html+.ts    página de inspeção por seção, fora do build
+scripts/               build de asset, determinístico
+public/                servido verbatim na raiz do site (fontes em public/fonts/)
+e2e/                   runner de aceite, quando existir
 ```
+
+**Isto não é preferência estética: é o que torna o paralelismo possível.** A fase 4 constrói com
+três ou quatro `visual-dev` ao mesmo tempo, e a regra que os mantém vivos é _arquivos disjuntos_ —
+dois devs no mesmo arquivo significa que o segundo sobrescreve o primeiro. Uma seção por pasta dá
+interseção vazia sem que ninguém precise negociar caso a caso.
+
+Cada pasta traz o próprio `README.md` com o que vai e o que não vai ali. `src/sections/exemplo/`
+
+- `src/content/exemplo.ts` + `dev/exemplo.{html,ts}` são o **molde completo**: copie, renomeie,
+  apague o exemplo — ele não está em `MOUNTS`, não entra no bundle e sai sem quebrar nada.
 
 Convenções que valem mesmo quando o briefing esquece:
 
+- **uma seção = uma pasta** `src/sections/<nome>/`, com `<nome>` igual ao `id` da `<section>` no
+  `index.html` e à chave do `MOUNTS` em `src/main.ts`;
 - seção exporta `mountSection(root: HTMLElement, engine: Engine)`; variante de hero exporta
   `mountHero(root: HTMLElement, engine: Engine)`;
+- **texto visível vem de `src/content/<nome>.ts`**, tipado — nunca escrito no markup da seção;
+- CSS de seção é `src/sections/<nome>/style.css`, importado pelo `index.ts` e prefixado pelo nome
+  da seção; `src/styles/` é só o global;
+- shader novo em `src/shaders/`, **um arquivo por técnica, nomeado pelo mecanismo**; shaders
+  vivem em `.ts` exportando strings, para o bundler tratá-los como código;
+- `src/generated/` é produzido por `scripts/` e **nunca editado à mão** — todo arquivo ali
+  declara procedência (`@generated`) ou está registrado em `.forge-visual/assets.json`;
+- `src/engine/` não se edita: um ajuste ali atinge todas as seções de uma vez;
 - **um ticker só** — o do engine. Nenhum `requestAnimationFrame` novo em lugar nenhum;
-- shaders vivem em `.ts` exportando strings, para o bundler tratá-los como código;
 - alias `@/` → `src/`, nos três configs (vite, vitest, tsconfig).
+
+⚠️ **`public/` é publicado verbatim na raiz do site** — o que entrar ali vai para `dist/` como
+está. Por isso a pasta vem com um `.gitkeep` em `public/fonts/` e não com um `README.md`: é a
+única pasta do projeto onde um arquivo de documentação viraria byte servido em produção.
+Apague o `.gitkeep` quando a primeira fonte entrar — até lá ele aparece como um arquivo de
+0,02 KB no relatório do `measure-bundle`. As
+fontes do brief são auto-hospedadas em `public/fonts/`, com `@font-face` próprio e subset latin;
+nenhuma chamada de rede a fonte em runtime.
+
+**O portão que cobra isto:** `check-structure.ts`, no plugin, reprova arquivo de seção fora do
+lugar, texto hardcoded no markup, arquivo sem procedência em `src/generated/` e alteração em
+`src/engine/`. Regra sem verificação é conselho, e conselho é ignorado quando aperta.
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=.
+```
 
 ## Scripts
 

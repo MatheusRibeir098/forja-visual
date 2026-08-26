@@ -140,7 +140,36 @@ um segundo canvas em variante nenhuma — duas seções não dividem posse de ca
 
 **Verificação:** `document.querySelector('#gl') instanceof HTMLCanvasElement`.
 
-### 1.10 Aumentar densidade só porque "cabe no orçamento"
+### 1.10 Arquivo fora da estrutura, e texto escrito no markup da seção
+
+**Por quê:** a estrutura do site gerado (`content/` × `sections/<nome>/` × `shaders/` ×
+`generated/` × `engine/`) **é o que torna o paralelismo possível**. A regra de ouro da fase 4 é
+*arquivos disjuntos*: dois `visual-dev` no mesmo arquivo significa que o segundo sobrescreve o
+primeiro. Uma seção por pasta garante interseção vazia sem que o orquestrador precise negociar
+caso a caso — e, sem a convenção, cada dev inventa a sua e o resultado é arquivo jogado em
+qualquer pasta.
+
+Texto hardcoded no markup tem custo próprio: a cópia deixa de ser revisável sem tocar em código,
+e remontar a seção passa a exigir copiar-e-colar de parágrafos.
+
+**No lugar:**
+
+| Isto | Vai aqui |
+|---|---|
+| a seção inteira | `src/sections/<nome>/` — `index.ts` (`mountSection`), `style.css`, `markup.ts`, `scene.ts` |
+| o texto visível | `src/content/<nome>.ts`, tipado |
+| shader novo | `src/shaders/`, um arquivo por técnica, nomeado pelo mecanismo |
+| saída de script | `src/generated/`, com `@generated` no cabeçalho — **nunca editado à mão** |
+| token, reset, tipografia | `src/styles/` — o global, sem nada de seção |
+| o motor | `src/engine/`, que **vem do template e não se edita** |
+
+**Verificação:** `check-structure.ts --project=.` → `0`. Ele reprova arquivo de seção fora da
+pasta, pasta de seção sem `index.ts`, CSS de seção no global, frase visível no markup, arquivo em
+`src/generated/` sem procedência (ou com `sha256` diferente do que a ingestão gravou) e qualquer
+alteração em `src/engine/`. Sem esse portão a regra é conselho — e conselho é ignorado quando
+aperta.
+
+### 1.11 Aumentar densidade só porque "cabe no orçamento"
 
 **Por quê:** o teto que decide raramente é bytes. No protótipo, mais limalha no hero foi reprovada
 com o teto de bytes **já suspenso**: 26k era o limite de **legibilidade** — acima disso o texto
@@ -180,7 +209,7 @@ O que muda entre os dois leitores é o **uso**, não o texto:
 | 5 | Textura em vez de procedural quando o olho não distingue | não automatizável — decisão medida |
 | 6 | Escale por dispositivo com um número, nunca com um caminho de código | estático |
 | 7 | Não monte o que está desligado | estático + runtime |
-| 8 | `prefers-reduced-motion` desde a arquitetura | runtime |
+| 8 | Movimento por scroll/cursor contínuo (nunca por evento); `prefers-reduced-motion` não é lido | runtime |
 | 9 | Toda constante mágica carrega o comentário com a medição | estático |
 
 A regra 7 é o mecanismo por trás da proibição 1.1, e a 9 é o que impede que uma constante medida
@@ -257,6 +286,10 @@ enquanto não há glifo.
 **Regra:** todo elemento revelado por `clip-path`, `mask` ou `transform` precisa ter `opacity`
 derivada do mesmo progresso. E, do outro lado: **contraste medido num instante não prova a faixa**
 — varra frames ao longo de 0→1 (o protótipo amostrou a cada 25–100 ms) antes de declarar aprovado.
+Isto deixou de ser só rigor de medição: como os sites animam sempre e para todos (regra 8, PLUGIN-SPEC
+§5.1), **toda** pose do percurso é um estado real que algum usuário vai ver — não existe mais um modo
+reduced-motion que "protege" a pior pose de aparecer. Uma variante que mede 1,13:1 em algum ponto da
+faixa e passa porque o medidor caiu numa pose congelada está aprovando um site ilegível.
 
 ### 3.6 Duas armadilhas de CSS/WebGL que se manifestam fora do 1280
 
@@ -437,6 +470,7 @@ Ler isto antes de prometer ao usuário:
 |---|---|---|
 | Contraste | **≥ 7:1**, medido **por pixel** | **reprova** |
 | FPS | mediana **≥ 60** em GPU real (renderer registrado) | **reprova** |
+| Estrutura | cada arquivo na pasta do seu papel; texto em `content/`; `generated/` com procedência; `engine/` intocado (§1.10) | **reprova** |
 | Crédito de licença | todo `attribution` registrado como link real, com texto, fora de toda seção (§4.3) | **reprova** |
 | Fonte fora do repo | nenhum arquivo de origem sob a raiz do site (§4.2) | **reprova** |
 | Build · typecheck · lint · test | verde | **reprova** |
@@ -461,11 +495,15 @@ vermelho vira critério na cabeça do próximo leitor.
 - [ ] Zero componente copiado de biblioteca de componentes; zero framework; zero Tailwind.
 - [ ] `grep -rn "requestAnimationFrame" src/` → 1 ocorrência.
 - [ ] Nenhum `getBoundingClientRect()` dentro do loop de seção.
-- [ ] Reduced-motion: quadro idêntico byte a byte, nenhum rAF extra.
+- [ ] Movimento por scroll/cursor lido pelo ticker a cada quadro, nunca escrito dentro do handler
+      de `scroll`/`wheel`/`pointermove` (regra 8) — `prefers-reduced-motion` não entra em nenhum
+      `if` de frameloop, callback ou tier.
 - [ ] Escala por tier é **número**, não caminho de código.
 - [ ] Toda constante não-óbvia tem comentário com valor, método e data da medição.
 - [ ] Atenuação por cor, não por alpha; elemento revelado por clip-path tem `opacity` derivada.
 - [ ] Contagem de amostras justificada em **pixels cobertos por passo**.
+- [ ] `check-structure.ts --project=.` saiu com 0: seção é pasta, texto é `src/content/<nome>.ts`,
+      `src/generated/` tem procedência, `src/engine/` idêntico ao template.
 - [ ] Asset do usuário passou por `ingest-asset.ts`; zero loader de malha em `src/`.
 - [ ] Nenhum arquivo de origem (`.stl`, `.obj`, `.psd`, `.ttf`…) sob a raiz do site.
 - [ ] Todo `attribution` do `.forge-visual/assets.json` é `<a href>` com texto, fora de `<section>`.

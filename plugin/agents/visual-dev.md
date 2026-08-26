@@ -60,13 +60,72 @@ quando o runner existir — `tsconfig.node.json` já inclui a pasta. **Não crie
 `measure`**: os medidores são invocados por caminho, a partir do plugin, pelo `visual-tester` —
 `pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-contrast.ts" --project=. --min=7`, rodado da
 raiz do site. Um `measure` local que encadeia os três só duplica a CLI e envelhece.
-Estrutura: `src/{engine,sections,shaders,styles,content,generated}` (`engine`, `shaders` e
-`styles` já vêm), `scripts/` para build de asset, `e2e/`. Gerenciador: **pnpm**, nunca npm.
+Gerenciador: **pnpm**, nunca npm.
+
+## Onde cada arquivo seu vai morar — não invente, e não pergunte
+
+```
+src/
+├── engine/            motor, vem do template — você NÃO edita
+├── shaders/           GLSL cru; um arquivo por técnica, nomeado pelo MECANISMO
+├── styles/            tokens, base, tipografia — o global, nada de seção
+├── content/           TEXTO tipado, um arquivo por seção + index (texto do site/colofão)
+├── sections/
+│   └── <nome>/        index.ts (mountSection) · style.css · markup.ts · scene.ts
+├── variants/<id>/     variantes de hero da fase 2 (index.ts → mountHero)
+├── generated/         saída de script — nunca editada à mão
+└── main.ts            monta as seções na ordem do documento
+
+dev/<nome>.html+.ts    página de inspeção da sua seção, fora do build
+scripts/               build de asset, determinístico
+public/                servido verbatim na raiz do site (fontes em public/fonts/)
+```
+
+Se a sua tarefa é **uma seção**, os arquivos que você cria são exatamente estes, e nenhum outro:
+
+| Arquivo | Papel |
+|---|---|
+| `src/sections/<nome>/index.ts` | exporta `mountSection(root: HTMLElement, engine: Engine)` — a única porta |
+| `src/sections/<nome>/style.css` | o CSS **desta** seção, importado pelo `index.ts`, com tudo prefixado por ela |
+| `src/sections/<nome>/markup.ts` | monta o DOM a partir de `@/content/<nome>` |
+| `src/sections/<nome>/scene.ts` | a cena WebGL, **só se** a seção desenhar |
+| `src/content/<nome>.ts` | o texto visível, tipado |
+| `dev/<nome>.html` + `dev/<nome>.ts` | a página que monta só a sua seção, em `/dev/<nome>.html` |
+
+`<nome>` é o mesmo `id` da `<section>` no `index.html` e a mesma chave do `MOUNTS` em
+`src/main.ts` — três nomes iguais, um conceito. **`src/sections/exemplo/` é o molde completo:
+copie a pasta, renomeie, troque o conteúdo.** Ele não está no `MOUNTS`, não entra no bundle e
+pode ser apagado.
+
+Isto não é organização por gosto — é a condição para você ter irmãos rodando ao mesmo tempo.
+A regra da fase 4 é *arquivos disjuntos*: uma seção por pasta é o que garante que ninguém
+sobrescreva o seu trabalho. Seis regras que caem daí, todas verificadas por
+`check-structure.ts` (que reprova a entrega, como contraste e FPS):
+
+- **texto visível vem de `src/content/<nome>.ts`, nunca escrito no markup** — nem em
+  `textContent = 'frase'`, nem em HTML dentro de template literal, nem em `aria-label`/`alt`;
+- **CSS de seção fica na pasta da seção**; `src/styles/` é o global e não recebe seletor cravado
+  no `id` de uma seção;
+- **shader novo é `src/shaders/<mecanismo>.ts`**, um arquivo por técnica;
+- **`src/generated/` é produzido por script** — todo arquivo ali traz `@generated` no cabeçalho
+  ou está registrado em `.forge-visual/assets.json`. Nunca edite ali à mão: a correção some no
+  próximo build e o bug volta sem a pista de que já foi mexido;
+- **`src/engine/` não se edita.** Ele é comparado byte a byte com o template. Precisa de algo
+  que o motor não dá? `pendencias` — a correção pertence ao template do plugin, não a este site;
+- **nada solto na raiz de `src/`** além de `main.ts` e `vite-env.d.ts`, e nenhuma pasta nova.
+
+Confira você mesmo antes de devolver, da raiz do site:
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=.
+```
 
 ## Convenções do projeto — valem mesmo quando o briefing esquece
 
 | Convenção | Valor |
 |---|---|
+| Seção | `src/sections/<nome>/index.ts` exporta `mountSection(root: HTMLElement, engine: Engine)` — uma pasta por seção |
+| Texto | `src/content/<nome>.ts`, tipado — nunca no markup |
 | Variante da fase 2 | `src/variants/<id>/index.ts` exporta `mountHero(root: HTMLElement, engine: Engine): void` — `<id>` é `a`, `b`, `c`… até `variantCount` (`brief.variantCount`, 2 a 5) |
 | Página da variante | `dev/<id>.html`, servida em `/dev/<id>.html` pelo `vite dev` |
 | Ticker | o do `engine`. Nenhum `requestAnimationFrame` novo, nem dentro da sua variante |
@@ -180,9 +239,11 @@ Detalhe, limites de formato e os cinco estados de reprovação do crédito: `vis
   guard), `const` por padrão, async/await.
 - **Código limpo:** nomes que revelam intenção, funções curtas com responsabilidade única, sem
   código morto, sem `console.log` de debug, early return.
-- **Acessibilidade é portão, não acabamento:** contraste **≥ 7:1** por pixel,
-  `prefers-reduced-motion` **na arquitetura** (muda frameloop, callbacks e tier — não é `if` no
-  fim), `:focus-visible` visível em **todo** fundo do site, sem overflow horizontal em 375 px.
+- **Acessibilidade é portão, não acabamento:** contraste **≥ 7:1** por pixel medido ao longo de
+  **toda** a faixa de animação (nunca de uma pose), movimento por scroll/cursor lido pelo ticker a
+  cada quadro (nunca escrito dentro do handler de evento), `:focus-visible` visível em **todo**
+  fundo do site, sem overflow horizontal em 375 px. **`prefers-reduced-motion` não é lido** —
+  decisão do dono (PLUGIN-SPEC §5.1): os sites animam para todos, sem exceção por preferência.
 - **Segurança:** nada de secret hardcodado; valide input externo (inclusive JSON de asset).
 - **Servidores de longa duração:** `Bash` com `run_in_background: true`, nunca foreground, `&` ou
   `nohup`. Quem valida subindo servidor é o `visual-tester`.
@@ -199,10 +260,12 @@ rápido: renderers, color management, `WebGLRenderTarget`) antes de escrever.
 - [ ] 1 único `requestAnimationFrame` em `src/`. [ ] Nenhum `getBoundingClientRect()` no loop.
 - [ ] Sem `any`, sem `console.log`, sem `catch {}` vazio.
 - [ ] Toda constante não-óbvia com comentário de medição (valor · método · data).
-- [ ] Atenuação por cor, não por alpha. [ ] Reduced-motion verificado.
+- [ ] Atenuação por cor, não por alpha. [ ] Movimento por scroll/cursor contínuo (regra 8), não por evento.
 - [ ] Asset do usuário: zero loader de malha em `src/`; nenhum arquivo de origem dentro do repo.
 - [ ] Todo `attribution` do brief virou `<a href>` com texto, fora de `<section>`
       (`check-attribution.ts --project=. --build` → 0).
+- [ ] `check-structure.ts --project=.` → `0`: cada arquivo na pasta do seu papel, texto em
+      `src/content/`, nada escrito em `src/engine/` nem em `src/generated/`.
 - [ ] `typecheck`, `lint`, `test`, `build` rodados no que você tocou.
 - [ ] Nenhum comando git destrutivo, nenhum commit, nenhum temporário solto.
 

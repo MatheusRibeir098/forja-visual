@@ -33,9 +33,16 @@ export interface Engine {
   pointer: Pointer;
   composite: Composite;
   /**
-   * `prefers-reduced-motion: reduce`. Quem anima sozinho (órbita, ruído no
-   * tempo) deve olhar aqui e ficar parado; movimento dirigido por scroll
-   * continua valendo, porque é o usuário quem o comanda.
+   * ⚠️ **Hoje isto é sempre `false`** — o motor ignora
+   * `prefers-reduced-motion: reduce` por decisão de produto, e a decisão, o
+   * custo em acessibilidade e as três linhas que a revertem estão em
+   * `engine/tier.ts`.
+   *
+   * O campo continua existindo, e continua sendo o lugar certo para uma
+   * animação própria (órbita, ruído no tempo, pulsação) perguntar se deve
+   * parar: quando a política mudar, uma linha em `tier.ts` volta a alimentá-lo
+   * e o site inteiro obedece sem outra edição. Movimento dirigido por scroll ou
+   * cursor nunca olhou aqui — quem comanda é o usuário.
    */
   reducedMotion: boolean;
   dispose(): void;
@@ -52,15 +59,30 @@ export function createEngine(canvas: HTMLCanvasElement): Engine | null {
   const { reducedMotion } = gl;
   const ticker = createTicker();
   // Com movimento reduzido nada deve rodar sozinho: o quadro passa a ser pedido,
-  // não contínuo.
+  // não contínuo. Na política atual `reducedMotion` é sempre `false`
+  // (`engine/tier.ts`), então o ticker fica em `always` — e é isso que mantém o
+  // movimento por scroll **fluido**: um quadro por evento de scroll não é
+  // movimento contínuo, porque o navegador agrupa os eventos e o resultado lê
+  // como engasgo. O caminho fica aqui para que reverter a política custe uma
+  // linha, não uma reescrita.
   if (reducedMotion) ticker.setMode('demand');
 
   const beats = createBeats({
     onFrame: (fn) => ticker.subscribe(fn),
-    // Em `demand` ninguém agendaria o quadro em que a medição aconteceria, e o
-    // scroll não moveria nada. Um `invalidate` por evento sujo dá exatamente um
-    // quadro por gesto — que é o comportamento certo sob reduced-motion.
-    onDirty: reducedMotion ? (): void => ticker.invalidate() : undefined,
+    // Ligado **sempre**, e os dois modos precisam dele por motivos diferentes:
+    //
+    //  · em `demand` ninguém agendaria o quadro em que a medição aconteceria, e
+    //    o scroll não moveria nada. Um `invalidate` por evento sujo dá
+    //    exatamente um quadro por gesto;
+    //  · em `always` ele é o **rearme** da cadeia de rAF (`ticker.ts`,
+    //    "REARME"). Enquanto isto ficou condicionado a `reducedMotion`, nada
+    //    trazia o loop de volta depois de a corrente ser cortada por fora, e a
+    //    página ficava parada no último quadro desenhado — que podia ser o de
+    //    outra seção, com fundo de luminância oposta.
+    //
+    // Com a cadeia viva a chamada custa duas comparações e um retorno
+    // (`ticker.ts`, `framePending`): não é um segundo agendador.
+    onDirty: (): void => ticker.invalidate(),
   });
 
   // O alvo é a janela, e não o canvas: seções com conteúdo por cima do canvas

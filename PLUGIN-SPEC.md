@@ -212,6 +212,100 @@ banido — um site que passava em todas as métricas e não impressionava. Ver o
 
 ---
 
+## 5.1 Política de movimento — decidida pelo dono em 2026-08-25
+
+**Os sites gerados ignoram `prefers-reduced-motion`. Animam em qualquer máquina.**
+
+Origem: um site construído com a ferramenta apareceu **estático e com scroll travado** na máquina
+de uma usuária de Windows, que tinha desligado "efeitos de animação" nas configurações de
+acessibilidade. O dono decidiu que os sites devem animar para todos, como a maioria dos sites faz.
+
+**O custo, escrito porque é real:** quem desliga animações por distúrbio vestibular — enjoo, tontura,
+dor de cabeça com movimento na tela — vê tudo se mexendo. Foi decisão consciente do dono, não
+esquecimento.
+
+⚠️ **Consequência obrigatória: o plugin não pode mais declarar "WCAG 2.2 AA" sem ressalva.** Prometer
+conformidade que não se cumpre é pior que não prometer. Onde a acessibilidade for citada como aceite,
+o texto deve dizer o que de fato é entregue — contraste ≥ 7:1 por pixel, foco visível, alvos de
+toque, semântica — e declarar que **movimento reduzido não é respeitado, por decisão de produto**.
+
+### O defeito que essa decisão revelou
+
+O site que originou a mudança tinha uma seção com contraste de **1,13:1** — texto claro sobre fundo
+claro, ilegível. O defeito **já existia**, escondido: sob movimento reduzido a animação congelava
+numa pose segura, e era essa pose que o medidor fotografava.
+
+Disso saem duas regras:
+
+1. **Contraste é propriedade de toda a faixa de animação, nunca de um instante.** Um medidor que
+   fotografa uma pose aprova sites ilegíveis. Ver §6.
+2. **Movimento por scroll e cursor precisa ser fluido** — era isso que estava travado na máquina da
+   usuária, e é o que ela de fato percebeu. Um quadro por evento de scroll não é movimento contínuo:
+   o navegador agrupa eventos, e o resultado lê como engasgo.
+
+### E um bug de motor, independente da política
+
+Ao interromper a cadeia de quadros, o ticker não rearmava o desenho — a seção seguia exibindo o
+**quadro anterior**, que podia ser de outra seção com fundo de luminância oposta. Foi essa a causa
+real do 1,13:1, e ela atinge qualquer site gerado. A correção pertence ao `templates/site/`.
+
+---
+
+## 5.2 Estrutura do site gerado — decidida pelo dono em 2026-08-25
+
+*"Na criação do site ele faz uma infraestrutura organizada, sem um monte de arquivo jogado em
+qualquer pasta, e sim separar e deixar organizado."*
+
+Hoje o template só define `src/engine`, `src/shaders` e `src/styles`. Não há convenção para onde as
+**seções** do site vivem — então na fase 4, com três ou quatro `visual-dev` em paralelo, cada um
+inventa a sua.
+
+### A estrutura
+
+Herdada do protótipo 01, onde foi provada com 8 seções e 11 técnicas:
+
+```
+src/
+├── engine/            motor, vem do template — o dev de seção NÃO edita
+├── shaders/           GLSL cru; um arquivo por técnica, nome do mecanismo
+├── styles/            tokens, base, tipografia — o global, nada de seção
+├── content/           TEXTO tipado, um arquivo por seção + index
+├── sections/
+│   └── <nome>/        index.ts (mountSection) · style.css · scene.ts · markup.ts
+├── generated/         medições e assets processados — nunca editado à mão
+└── main.ts            monta as seções na ordem do documento
+
+dev/<nome>.html        página isolada por seção, para inspecionar uma técnica de cada vez
+scripts/               build de assets (determinístico)
+public/                assets servidos
+```
+
+### Por que isto não é preferência estética
+
+**É o que torna o paralelismo possível.** A regra de ouro da fase 4 é *arquivos disjuntos*: dois
+devs no mesmo arquivo significa que o segundo sobrescreve o primeiro. Uma seção por pasta é o que
+garante interseção vazia sem que o orquestrador precise negociar caso a caso.
+
+Três consequências que vêm de graça, e que valem escrever:
+
+1. **Conteúdo separado de apresentação** (`content/` × `sections/`) — o texto pode ser revisado sem
+   tocar em código, e a mesma seção pode ser remontada sem reescrever a cópia.
+2. **Uma página de dev por seção** — inspecionar uma técnica isolada é o que torna o diagnóstico
+   barato. No protótipo, `/dev/catalogo.html?check=1` resolveu um bug de alinhamento que a página
+   inteira escondia.
+3. **`generated/` explícito** — deixa claro o que é produzido por script e não deve ser editado à
+   mão. Sem essa fronteira, alguém corrige o sintoma no arquivo gerado e a correção some no próximo
+   build.
+
+### Precisa de portão
+
+Regra sem verificação é conselho, e conselho é ignorado quando aperta. A estrutura precisa ser
+**checável** — arquivo de seção fora de `sections/<nome>/`, texto hardcoded no markup em vez de
+`content/`, edição em `generated/`. Onde exatamente isso é verificado é decisão de implementação;
+que seja verificado, não é.
+
+---
+
 ## 6. Portões — o que reprova
 
 | Portão | Critério | Natureza |

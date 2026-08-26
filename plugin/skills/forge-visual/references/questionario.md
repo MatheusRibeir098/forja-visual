@@ -268,7 +268,7 @@ Se você não consegue escrever o check, a rejeição ainda não é utilizável:
 | cursor bolinha | `cursor` fica no valor nativo; nenhum elemento seguindo o ponteiro por `transform` |
 | scroll suave | sem Lenis/Motion/scroll-behavior por JS; a rolagem é a do navegador |
 | site lento | `criticalKb` ≤ 150 e primeiro quadro pintado sem esperar WebGL |
-| animação que não para | `effectDensity` ≠ `alta`; nenhuma animação infinita fora de reduced-motion |
+| animação que não para | `effectDensity` ≠ `alta`; nenhuma animação decorativa em loop infinito sem gatilho de scroll/cursor (a ferramenta não reduz movimento por `prefers-reduced-motion` — ver PLUGIN-SPEC §5.1) |
 | letra pequena / cinza | corpo ≥ 18px; contraste ≥ 7:1 (já é portão) |
 | "parece template" | ⚠️ **não é check** — reabra com o menu de traços acima até virar item concreto |
 

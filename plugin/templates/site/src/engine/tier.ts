@@ -120,7 +120,35 @@ function readRendererName(gl: WebGL2RenderingContext): string {
 
 export function detectTier(gl: WebGL2RenderingContext): TierReport {
   const renderer = readRendererName(gl);
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ── MOVIMENTO REDUZIDO: IGNORADO, DE PROPÓSITO ────────────────────────────
+  //
+  // Isto **não é um esquecimento**. É decisão de produto do dono, tomada em
+  // 26/08/2026 e registrada na §5.1 da spec do plugin: os sites gerados animam
+  // em qualquer máquina, como a maioria da web faz.
+  //
+  // O que a motivou: num Windows com "Efeitos de animação" desligado nas
+  // configurações de acessibilidade, um site gerado aparecia parado e o scroll
+  // andava em degraus — um quadro por evento (`engine/index.ts`, modo
+  // `demand`). Como quase nenhum outro site respeita a preferência, o nosso era
+  // o único que parava, e a usuária leu isso como "site travado".
+  //
+  // ⚠️ O CUSTO, ESCRITO PORQUE É REAL: quem desliga animações por distúrbio
+  // vestibular — enjoo, vertigem, enxaqueca com movimento na tela — vê tudo se
+  // mexendo aqui, e não tem como pedir que pare. Foi escolha consciente, com o
+  // custo conhecido. Pela mesma razão o site **não** pode ser anunciado como
+  // "WCAG 2.2 AA" sem a ressalva de que o critério 2.3.3 não é atendido.
+  //
+  // PARA REVERTER, três pontos — e são só estes três:
+  //   1. esta linha  ->  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  //   2. src/styles/base.css -> reponha o `@media (prefers-reduced-motion: no-preference)`
+  //      em volta do `scroll-behavior: smooth`
+  //   3. o CSS das suas seções -> qualquer animação declarativa volta a nascer
+  //      dentro de um `@media (prefers-reduced-motion: no-preference)`
+  //
+  // O resto do motor já obedece a este valor sozinho (o ticker volta a `demand`
+  // em `engine/index.ts`, o grão do passe de grade congela em `main.ts`): não
+  // há um quarto ponto escondido.
+  const reducedMotion = false;
 
   if (SOFTWARE_RENDERER.test(renderer)) {
     return { tier: 'low', renderer, reducedMotion };

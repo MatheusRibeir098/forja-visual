@@ -65,14 +65,16 @@
 
 @layer base {
   html {
-    /* Scroll suave é movimento: sai por preferência do usuário, não por um if. */
-    scroll-behavior: auto;
-  }
+    /* Scroll suave para todos, inclusive para quem pediu movimento reduzido.
+       Isto não é descuido: `prefers-reduced-motion` é ignorado por decisão de
+       produto do dono (26/08/2026). O porquê, o custo em acessibilidade e as
+       três linhas que revertem a decisão estão em `src/engine/tier.ts`, na
+       declaração de `reducedMotion` — leia lá antes de mexer aqui.
 
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
-    }
+       Ponto 2 de 3 da reversão: reponha o `@media (prefers-reduced-motion:
+       no-preference)` em volta desta regra e devolva `scroll-behavior: auto`
+       ao padrão. */
+    scroll-behavior: smooth;
   }
 
   body {

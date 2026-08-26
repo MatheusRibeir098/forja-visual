@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Página de inspeção da seção exemplo — molde de dev/<nome>.html."
+    />
+
+    <title>dev · seção exemplo</title>
+  </head>
+  <body>
+    <!--
+      MOLDE de `dev/<nome>.html`. Copie junto com a pasta da seção.
+
+      Canvas único, `id="gl"` — a mesma convenção do `index.html`, porque é ela
+      que os medidores procuram primeiro (`#gl,[data-forge-gl]`). Uma página de
+      inspeção com canvas fora da convenção obriga `--canvas` em toda medição.
+    -->
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <main id="conteudo">
+      <!--
+        O mesmo esqueleto que a seção tem no `index.html`: o `id` que a liga ao
+        mount e um título de verdade, para a página seguir legível sem
+        JavaScript. O texto do título é preenchido a partir de
+        `src/content/exemplo.ts` ao montar.
+      -->
+      <section id="exemplo" class="section" aria-labelledby="exemplo-title">
+        <h1 id="exemplo-title">exemplo</h1>
+      </section>
+    </main>
+
+    <script type="module" src="/dev/exemplo.ts"></script>
+  </body>
+</html>

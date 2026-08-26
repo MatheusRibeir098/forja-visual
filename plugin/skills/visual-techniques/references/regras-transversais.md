@@ -158,20 +158,36 @@ justamente para não alocar alvos intermediários.
 
 ---
 
-## 8. `prefers-reduced-motion` desde a arquitetura
+## 8. Movimento por scroll/cursor é contínuo, nunca por evento — `prefers-reduced-motion` não é lido
 
-**Enunciado.** Não é um `if` no fim. Muda o frameloop (contínuo -> por demanda), quais callbacks são
-assinados e qual tier roda.
+**Enunciado.** Decisão do dono, registrada em `PLUGIN-SPEC.md` §5.1: os sites gerados **ignoram
+`prefers-reduced-motion`** e animam em qualquer máquina, sempre. Em troca, o movimento que resta
+não pode ser um handler de evento desenhando quadro: scroll e cursor alimentam o progresso 0–1
+(regra 1), lido a cada quadro pelo ticker único (regra 2) — nunca um `addEventListener('scroll', …)`
+que escreve `transform` direto. Um quadro por evento de scroll não é movimento contínuo: o
+navegador agrupa eventos de entrada, e o resultado lê como engasgo.
 
-**Verificação — runtime.** Emule `prefers-reduced-motion: reduce` e capture dois quadros separados
-por alguns segundos, sem interação: as imagens têm de ser **byte a byte idênticas**. Depois, confira
-que o ticker não está agendando quadro contínuo (contador de `rAF` estável).
+**Por quê.** Foi exatamente esse engasgo que uma usuária com "efeitos de animação" desligados no
+Windows relatou como site travado — a causa não era a ausência de um `if (prefersReducedMotion)`,
+era o handler de scroll sendo a única fonte de quadro. Ler a preferência não teria corrigido nada.
 
-**Reprova quando.** Sob `prefers-reduced-motion: reduce`: dois instantes produzem quadros diferentes, ou o ticker segue agendando quadro contínuo. Animação apenas 'mais curta' em vez de ausente.
+**Verificação — runtime.** Dispare uma sequência de eventos `wheel`/`scroll` sintéticos espaçados
+de poucos milissegundos entre si e conte quadros pintados no intervalo entre o primeiro e o último
+evento: tem de haver **mais de um quadro por evento de entrada** — sinal de que o progresso é lido
+pelo ticker, não escrito dentro do handler.
 
-**Provado.** Sob reduced-motion o protótipo é byte a byte idêntico entre capturas, o ticker entra em
-modo demand e a ficha de medição deixa de reportar FPS por não haver quadro contínuo — sem segundo
-caminho de código para o conteúdo.
+**Reprova quando.** Quadro pintado só dentro do handler de `scroll`/`wheel`/`pointermove`; contagem
+de quadros pintados igual ou menor que a contagem de eventos de entrada no mesmo intervalo.
+
+**Não verificável, e não é lacuna.** `prefers-reduced-motion` não é lido para decidir frameloop,
+callbacks ou tier — em nenhuma variante, em nenhuma tarefa. É decisão de produto, escrita e
+assumida: quem desliga animação por distúrbio vestibular (enjoo, tontura, dor de cabeça com
+movimento na tela) vê o site se mexer do mesmo jeito que qualquer outra máquina.
+
+**Nota histórica — protótipo 01.** O protótipo 01, anterior a esta decisão, respeitava a
+preferência: sob `prefers-reduced-motion: reduce` o ticker entrava em modo demand e as capturas
+eram byte a byte idênticas. Registro do que foi feito ali — não descreve o comportamento da
+ferramenta hoje.
 
 ---
 

@@ -141,7 +141,7 @@ técnica**; na `visual-guardrails` ela é **portão de build**.
 | 5 | Textura em vez de procedural quando o olho não distingue | não |
 | 6 | Escale por dispositivo com um número, nunca com um caminho de código | sim (estático) |
 | 7 | Não monte o que está desligado | sim (estático) |
-| 8 | `prefers-reduced-motion` desde a arquitetura | sim (runtime) |
+| 8 | Movimento por scroll/cursor contínuo (nunca por evento); `prefers-reduced-motion` não é lido | sim (runtime) |
 | 9 | Toda constante mágica carrega o comentário com a medição | sim (estático) |
 
 ## Antes de transformar qualquer número em critério
@@ -151,9 +151,12 @@ Duas lições caras do protótipo 01, que valem para toda medição de técnica:
 - **Medida nova exige validação do ambiente antes de virar critério.** Dois devs gastaram ~20 min
   cada perseguindo uma cauda de p5 fps que era outro processo disputando a GPU. Se um número não
   correlaciona com a variável que você mexe, o problema não é a variável.
-- **Meça a faixa, não o instante.** Um texto com `clip-path` fechado media "2,86:1" porque o
-  medidor lia ruído de fundo e chamava de texto; e uma máscara de threshold pode deixar o pior
-  contraste em qualquer ponto de `uProgress`, não no 0 nem no 1.
+- **Meça a faixa, não o instante.** Contraste é propriedade de **toda** a faixa de animação, nunca
+  de uma pose. Um texto com `clip-path` fechado media "2,86:1" porque o medidor lia ruído de fundo
+  e chamava de texto; uma máscara de threshold pode deixar o pior contraste em qualquer ponto de
+  `uProgress`, não no 0 nem no 1; e uma seção mediu 1,13:1 e passou porque a medição caiu numa pose
+  congelada em vez de varrer o percurso — como os sites animam sempre (regra 8), a pose congelada
+  não é um estado real de nenhum usuário e não prova nada sobre o resto da faixa.
 
 Números completos, com o que cada um prova, em `references/medicoes-prototipo-01.md`.
 

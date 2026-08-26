@@ -131,9 +131,9 @@ faixa local dele. Fontes concorrentes (scroll, hover, clique mantido) alimentam 
 **Custo.** Zero em runtime. O custo é de arquitetura: um módulo de ticker e a disciplina de nunca
 abrir o segundo laço, nem "só para um fallback".
 
-**Quando NÃO usar.** Não existe caso. O que existe é a variante: sob `prefers-reduced-motion` o
-ticker deixa de ser contínuo e passa a **demand mode** — só renderiza quando alguém marca sujo.
-Isso é um modo do mesmo ticker, não um segundo laço.
+**Quando NÃO usar.** Não existe caso — nem para `prefers-reduced-motion`: a ferramenta não lê essa
+preferência (decisão do dono, PLUGIN-SPEC §5.1) e o ticker roda contínuo sempre, em qualquer
+máquina. Não há modo demand a implementar.
 
 **Armadilhas.**
 - Um fallback de `rAF` dentro de um módulo auxiliar (por exemplo, para observar layout quando não

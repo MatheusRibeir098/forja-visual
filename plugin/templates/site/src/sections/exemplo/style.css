@@ -1,0 +1,52 @@
+/*
+ * MOLDE — o CSS desta seção, e de mais nenhuma.
+ *
+ * Importado por `./index.ts`, dentro da camada `sections` declarada uma vez em
+ * `styles/base.css`. Tudo aqui é prefixado pelo nome da seção (`.exemplo__*`):
+ * seletor genérico num arquivo de seção vaza para as vizinhas e devolve a
+ * disputa que a estrutura de pastas existe para eliminar.
+ *
+ * Token, reset e tipografia NÃO vêm para cá — são `styles/tokens.css` e
+ * `styles/base.css`, o global.
+ */
+
+@layer sections {
+  /* "Quem não desenha é opaco": esta seção não tem WebGL, então ela é o fundo
+     do próprio pedaço. Sem isto, o que aparece atrás dela é preto — o canvas é
+     criado sem alpha e ninguém dá clear global (A REGRA DO CANVAS). */
+  #exemplo {
+    background: var(--bg);
+  }
+
+  /* ⚠️ Com a paleta placeholder (magenta/ciano de `styles/tokens.css`) esta seção mede
+     ~1,2:1 no `measure-contrast` — e é para medir mesmo. O portão só fica verde quando a
+     paleta do brief entrar; "consertar" o medidor ou clarear só este texto é tratar o
+     sintoma. Medido em 26/08/2026 em /dev/exemplo.html: 1,20:1 no olho-de-boi, 2,08:1 no
+     corpo de texto. */
+  .exemplo__eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .exemplo__body {
+    max-width: var(--measure);
+    margin-block-start: var(--space-m);
+    display: grid;
+    gap: var(--space-s);
+  }
+
+  .exemplo__bar {
+    --exemplo-progress: 0;
+
+    margin-block-start: var(--space-l);
+    height: var(--space-2xs);
+    background: var(--rule);
+    /* O progresso do beat chega como número puro na custom property e vira
+       escala — uma transformação por quadro, sem layout e sem leitura de DOM. */
+    scale: var(--exemplo-progress) 1;
+    transform-origin: left center;
+  }
+}

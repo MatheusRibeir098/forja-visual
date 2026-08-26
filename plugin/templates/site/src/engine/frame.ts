@@ -262,9 +262,12 @@ export function createFrame(host: FrameHost): Frame {
       // nota do módulo em `grade.ts`. `uBloomEnabled` já foi gravado na
       // criação a partir de `settings.bloomLevels` (regra do tier: só o
       // número muda, não o caminho de código).
-      // Sob `prefers-reduced-motion` a semente fica cravada: grão animado é
-      // exatamente o movimento que a preferência pede para não existir. A
+      // `animateGrain === false` crava a semente: grão animado é exatamente o
+      // movimento que `prefers-reduced-motion` pediria para não existir, e a
       // imagem parada continua correta — só deixa de mudar quadro a quadro.
+      // Na política atual do motor esse caminho não é exercido: `main.ts`
+      // chama com `!reducedMotion`, e `reducedMotion` é sempre `false` por
+      // decisão de produto (ver `engine/tier.ts`).
       gradeUniforms.uGrainSeed.value = animateGrain ? elapsed : 0;
       drawScreen();
     },

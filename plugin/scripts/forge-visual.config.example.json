@@ -83,6 +83,12 @@
     "//bgMin-bgMax": "NÃO ponha a faixa de luminância aqui. Ela é pré-atribuída POR VARIANTE (tabela §2 do divergencia.md) e este arquivo é compartilhado por todas: passe `--bg-min` e `--bg-max` na linha de comando de cada variante."
   },
 
+  "//structure": "check-structure.ts — a estrutura de pastas do site (nada aqui é obrigatório; o portão funciona sem config).",
+  "structure": {
+    "//template": "De onde vem o `src/engine/` de referência, comparado byte a byte com o do site. Padrão: `templates/site/` do próprio plugin. Só mude se o site nasceu de outra cópia do template. Equivalente em CLI: `--template=<dir>`; para pular a comparação, `--no-engine`.",
+    "template": ""
+  },
+
   "//assets": "seção lida por ingest-asset.ts e check-attribution.ts, quando o brief tem `assets`. Nenhum campo aqui é obrigatório — os dois scripts também aceitam a flag de linha de comando equivalente, que tem precedência sobre este arquivo.",
   "assets": {
     "//outDir": "Onde ingest-asset.ts grava o derivado processado do asset do usuário, relativo à raiz do site. Padrão: `src/generated/assets`. Equivalente em CLI: `--out-dir`.",

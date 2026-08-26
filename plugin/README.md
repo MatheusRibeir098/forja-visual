@@ -3,7 +3,14 @@
 Plugin do Claude Code que constrói sites de alto impacto visual em **TypeScript puro + Vite +
 three**, sem framework, sempre projeto novo: questionário de direção visual, três amostras reais
 construídas e medidas para o dono escolher, catálogo de técnicas por mecanismo, e medição que
-**reprova o build** (contraste ≥ 7:1 por pixel, FPS mediana ≥ 60 em GPU real).
+**reprova o build** (contraste ≥ 7:1 por pixel — medido ao longo de toda a faixa de animação, não
+de um instante —, FPS mediana ≥ 60 em GPU real, foco visível, alvos de toque, semântica, texto
+alternativo).
+
+**Os sites gerados não respeitam `prefers-reduced-motion`.** Decisão de produto (PLUGIN-SPEC §5.1):
+animam para todos, em qualquer máquina. Quem desliga animação por distúrbio vestibular — enjoo,
+tontura, dor de cabeça com movimento na tela — vê o site se mexer do mesmo jeito. Isto não é
+conformidade WCAG 2.2 AA completa; é o que a ferramenta de fato entrega, sem ressalva escondida.
 
 ## Como invocar
 
@@ -47,6 +54,8 @@ scripts/measure-fps.ts         FPS/GPU-ms em GPU real (reprova mediana < 60)
 scripts/measure-variant.ts     bgLuminance, motionCoverage, typeScaleRatio de uma variante (fase 2)
 scripts/ingest-asset.ts        processa um asset do usuário em build time (derivado determinístico)
 scripts/check-attribution.ts   crédito de licença e ausência de arquivo fonte no repo (reprova)
+scripts/check-structure.ts     cada arquivo na pasta do seu papel; texto fora do markup (reprova)
+templates/site/                ponto de partida de todo site: motor, shaders, estilos e a estrutura
 ```
 
 **Fonte única das 9 regras transversais:** `skills/visual-techniques/references/regras-transversais.md`.
@@ -64,7 +73,10 @@ cp -R "${CLAUDE_PLUGIN_ROOT}/templates/site/." ./meu-site/ && cd meu-site && pnp
 
 O template já traz o motor (`src/engine/`, documentado em `ENGINE.md`), os shaders genéricos, a
 base de CSS (com paleta placeholder gritante — magenta/ciano, de propósito, até o brief entrar
-com as cores reais) e a configuração inteira. Os medidores moram no plugin, mas carregam o
+com as cores reais), a configuração inteira e a **estrutura de pastas** com um `README.md` em
+cada uma dizendo o que vai e o que não vai ali (`src/{sections,content,generated,styles,shaders}`,
+`dev/`, `scripts/`, `public/`), mais o molde completo de uma seção — `src/sections/exemplo/` +
+`src/content/exemplo.ts` + `dev/exemplo.{html,ts}`, feito para ser copiado e apagado. Os medidores moram no plugin, mas carregam o
 **`playwright-core` do projeto medido** — é o que os torna portáteis — e por isso `tsx` e
 `playwright-core` já vêm nas devDependencies do template; não precisam ser adicionados de novo,
 e não devem ser removidos numa "limpeza" de `package.json`. Sem eles, os dois portões que
@@ -127,10 +139,45 @@ pnpm exec tsx <plugin>/scripts/check-attribution.ts --project=. --rendered   # +
   sobrevive ao corte da seção). Só é exigido quando o brief tem `assets` com `attribution`.
   Saídas: `0` ok · `1` reprovou · `4` nada mensurável (sem HTML construído a ler).
 
+## Estrutura do site: o portão
+
+`check-structure.ts` não mede nada — ele lê a árvore de arquivos e reprova quem saiu do lugar.
+Existe porque a estrutura **é o que torna o paralelismo possível**: a fase 4 constrói com três ou
+quatro `visual-dev` ao mesmo tempo, e a regra que os mantém vivos é *arquivos disjuntos*. Uma
+seção por pasta garante interseção vazia sem ninguém negociar caso a caso.
+
+```bash
+pnpm exec tsx <plugin>/scripts/check-structure.ts --project=.          # 0 ok · 1 reprovou · 4 sem src/
+pnpm exec tsx <plugin>/scripts/check-structure.ts --project=. --json --no-engine
+```
+
+Quatro verificações, todas estáticas e todas reprovando:
+
+1. **lugar do arquivo** — só as pastas da estrutura sob `src/`; uma seção é uma **pasta** com
+   `index.ts` exportando `mountSection`; CSS de seção na pasta da seção, e `src/styles/` sem
+   seletor cravado no `id` de uma seção;
+2. **texto fora do markup** — nenhuma frase visível escrita em `src/sections/` (`textContent`,
+   `innerHTML`, `insertAdjacentHTML`, HTML com prosa em literal, `aria-label`/`alt`/`title`);
+3. **`src/generated/` com procedência** — cada arquivo é um derivado registrado com o `sha256`
+   que a ingestão gravou (hash diferente = editado depois de gerado) ou traz `@generated` no
+   cabeçalho;
+4. **`src/engine/` intocado** — comparado byte a byte com `templates/site/src/engine/`.
+
+O que ele **não** vê, declarado: texto no `index.html` (ali o markup é o esqueleto legível sem
+JavaScript), nome de shader que descreve efeito em vez de mecanismo, arquivo gerado editado e
+regerado em seguida, e `src/variants/` na regra de texto (variante é protótipo de direção).
+
 ## Convenções do projeto gerado
 
 | Convenção | Valor |
 |---|---|
+| Seção | uma pasta: `src/sections/<nome>/index.ts` exporta `mountSection(root, engine)` — `<nome>` = `id` da `<section>` no `index.html` = chave do `MOUNTS` |
+| Texto da seção | `src/content/<nome>.ts`, tipado — nunca escrito no markup |
+| Estilo da seção | `src/sections/<nome>/style.css`, importado pelo `index.ts`; `src/styles/` é só o global |
+| Shader | `src/shaders/`, um arquivo por técnica, nomeado pelo mecanismo |
+| Saída de script | `src/generated/`, nunca editada à mão (`@generated` no cabeçalho ou registro em `.forge-visual/assets.json`) |
+| Motor | `src/engine/`, vem do template e **não se edita** |
+| Página de inspeção | `dev/<nome>.html` + `dev/<nome>.ts` — uma por seção |
 | Variante da fase 2 | `src/variants/<id>/index.ts` exporta `mountHero(root, engine)` — `<id>` é `a`, `b`, `c`… até `variantCount` (2 a 5) |
 | Página da variante | `dev/<id>.html` → `/dev/a.html`, `/dev/b.html`… uma por variante |
 | Artefatos de controle | `.forge-visual/` na raiz do projeto do usuário |

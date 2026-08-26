@@ -57,12 +57,19 @@ Grave em `.forge-visual/` na raiz do projeto:
 
 ## Convenções do projeto gerado — escreva-as em todo briefing
 
-Estas quatro convenções não são preferência de estilo: os agentes e os medidores dependem delas.
+Estas convenções não são preferência de estilo: os agentes e os medidores dependem delas.
 **Todo briefing de `visual-dev` e de `visual-tester` as carrega**, porque convenção que só uma das
-partes conhece não é convenção.
+partes conhece não é convenção — e `check-structure.ts` reprova quem sair delas.
 
 | Convenção | Valor | Quem depende |
 |---|---|---|
+| Seção | **uma pasta**: `src/sections/<nome>/index.ts` exportando `mountSection(root: HTMLElement, engine: Engine)` — `<nome>` = `id` da `<section>` no `index.html` = chave do `MOUNTS` | `visual-dev` (escreve), `check-structure` (reprova) |
+| Texto da seção | `src/content/<nome>.ts`, tipado — **nunca** escrito no markup | `visual-dev`, `check-structure` |
+| Estilo da seção | `src/sections/<nome>/style.css`, importado pelo `index.ts`; `src/styles/` é só o global | `visual-dev`, `check-structure` |
+| Shader | `src/shaders/`, um arquivo por técnica, nomeado pelo **mecanismo** | `visual-dev` |
+| Saída de script | `src/generated/`, produzida por `scripts/` e nunca editada à mão | `ingest-asset`, `check-structure` |
+| Motor | `src/engine/` vem do template e **não se edita** | todos |
+| Página de inspeção | `dev/<nome>.html` + `dev/<nome>.ts`, uma por seção | `visual-tester` (mede e fotografa por URL) |
 | Variante | `src/variants/<id>/index.ts` exportando `mountHero(root: HTMLElement, engine: Engine): void` — `<id>` é `a`, `b`, `c`… até `variantCount` | `visual-dev` (escreve), fase 2 (monta) |
 | Página de variante | `dev/<id>.html` → servida em `/dev/a.html`, `/dev/b.html`, … | `visual-tester` (mede e fotografa por URL) |
 | Artefatos de controle | `.forge-visual/` na raiz do **projeto do usuário** — nunca dentro do plugin | todos |
@@ -84,6 +91,13 @@ cp -R "${CLAUDE_PLUGIN_ROOT}/templates/site/." ./<site>/ && cd <site> && pnpm in
 
 **Não** `pnpm create vite`, nem `package.json` montado à mão — isso produziria um site sem
 `engine`, e cada `visual-dev` de variante inventaria o seu.
+
+**O template já traz a estrutura, com um `README.md` por pasta.** `src/{sections,content,generated}`,
+`scripts/`, `dev/` e `public/` chegam prontos, cada um com o que vai e o que não vai ali escrito
+onde o dev vai olhar — mais o molde completo de uma seção (`src/sections/exemplo/` +
+`src/content/exemplo.ts` + `dev/exemplo.{html,ts}`), que existe para ser copiado, renomeado e
+apagado. Ele não está no `MOUNTS`, então não entra no bundle e sai sem quebrar nada. Nenhum
+`visual-dev` precisa inventar onde as coisas moram — e `check-structure.ts` reprova quem inventar.
 
 **`ENGINE.md`, na raiz do projeto copiado, é a única fonte da interface `Engine`.** Todo
 briefing que pedir `mountHero(root, engine)` ou `mountSection(root, engine)` manda o dev ler
@@ -483,9 +497,53 @@ Regras de corte:
 disjuntos**, teto de **3–4 simultâneos**, briefing auto-contido, todas as chamadas na mesma
 mensagem.
 
+## Onde cada coisa mora — a estrutura que torna o paralelismo possível
+
+```
+src/
+├── engine/            motor, vem do template — o dev de seção NÃO edita
+├── shaders/           GLSL cru; um arquivo por técnica, nome do mecanismo
+├── styles/            tokens, base, tipografia — o global, nada de seção
+├── content/           TEXTO tipado, um arquivo por seção + index (site/colofão)
+├── sections/
+│   └── <nome>/        index.ts (mountSection) · style.css · markup.ts · scene.ts
+├── variants/<id>/     variantes de hero da fase 2
+├── generated/         medições e assets processados — nunca editado à mão
+└── main.ts            monta as seções na ordem do documento
+
+dev/<nome>.html+.ts    página isolada por seção, para inspecionar uma técnica de cada vez
+scripts/               build de assets (determinístico)
+public/                assets servidos (fontes em public/fonts/)
+```
+
+**Isto não é preferência estética — é a condição do fan-out.** A regra de ouro desta fase é
+*arquivos disjuntos*: dois devs no mesmo arquivo significa que o segundo sobrescreve o primeiro.
+Uma seção por pasta é o que garante interseção vazia **sem você negociar caso a caso**. Antes
+desta convenção existir, três ou quatro `visual-dev` em paralelo inventavam cada um a sua — e o
+resultado era arquivo jogado em qualquer pasta.
+
+Três consequências que vêm de graça:
+
+1. **Conteúdo separado de apresentação** (`content/` × `sections/`) — o texto é revisado sem
+   tocar em código, e a seção pode ser remontada sem reescrever a cópia.
+2. **Uma página de dev por seção** — inspecionar uma técnica isolada é o que torna o diagnóstico
+   barato. No protótipo 01, `/dev/catalogo.html?check=1` resolveu um bug de alinhamento que a
+   página inteira escondia.
+3. **`generated/` explícito** — sem essa fronteira, alguém corrige o sintoma no arquivo gerado e
+   a correção some no próximo build.
+
+Como o template já traz o esqueleto e o molde (`src/sections/exemplo/`), a tarefa de cada dev é
+**copiar o molde e renomear**, nunca decidir onde o arquivo vai. Ao distribuir as tarefas, dê a
+fronteira como caminho literal: *"você é dono de `src/sections/manifesto/**` e
+`src/content/manifesto.ts`; qualquer coisa fora disso é `pendencias`"*. É o que o portão
+`check-structure.ts` cobra na fase 5.
+
+## O briefing
+
 Cada briefing de `visual-dev` carrega, sem exceção:
 
-1. os arquivos que ele é o **único** dono, com o aviso de concorrência;
+1. os arquivos que ele é o **único** dono, com o aviso de concorrência — para uma seção, isso é
+   `src/sections/<nome>/**` + `src/content/<nome>.ts` + `dev/<nome>.{html,ts}`, e nada mais;
 2. o `VisualBrief` inteiro;
 3. a direção vencedora e os sobreviventes que essa tarefa realiza;
 4. as técnicas designadas a ela (da fase 3), com o problema que cada uma resolve;
@@ -513,14 +571,19 @@ Ordem que funciona: **motor/engine (serial) → contrato de posse do canvas (ser
 Regras que valem em toda tarefa desta fase:
 
 - **Um ticker só.** Múltiplos `rAF` é a causa raiz de judder inexplicável.
-- **`prefers-reduced-motion` desde a arquitetura**, não um `if` no fim: muda o frameloop, os
-  callbacks assinados e o tier.
+- **Movimento por scroll/cursor é contínuo, nunca por evento.** Progresso lido a cada quadro pelo
+  ticker, nunca quadro escrito dentro do handler — um quadro por evento de scroll lê como engasgo.
+  `prefers-reduced-motion` **não é lido** (decisão do dono, PLUGIN-SPEC §5.1): os sites animam para
+  todos, e isso não é lacuna a fechar.
 - **Escale por dispositivo com um número, não com um caminho de código** (contagem de pontos,
   amostras, densidade) — nunca uma cena alternativa.
 - **Toda constante mágica carrega o comentário com a medição que a justifica**, incluindo método e
   data. Sem isso ninguém consegue mexer depois com segurança — e um comentário que envelheceu
   mentindo já custou uma decisão de densidade errada neste projeto.
-- **Texto de conteúdo é DOM real, nunca dentro de `<canvas>`.**
+- **Texto de conteúdo é DOM real, nunca dentro de `<canvas>`** — e vem de `src/content/<nome>.ts`,
+  tipado, nunca escrito no markup da seção. `check-structure.ts` reprova a frase hardcoded.
+- **Ninguém edita fora da própria pasta.** `src/engine/` é do template; `src/styles/` é o global;
+  `src/generated/` é do script. Faltou algo do motor? `pendencias`, não um `patch` no `engine/`.
 
 ---
 
@@ -534,9 +597,19 @@ cd <raiz do site>
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-bundle.ts"   --project=. --brief=.forge-visual/brief.json
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-contrast.ts" --project=. --min=7
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-fps.ts"      --project=. --min=60
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts"  --project=.
 ```
 
-**Quando `brief.assets` tem algum item com `attribution`, um quinto portão roda junto:**
+**`check-structure.ts` é o portão da estrutura da fase 4** — o único que não mede nada: ele lê a
+árvore de arquivos e reprova (1) arquivo de seção fora de `src/sections/<nome>/`, (2) texto
+visível hardcoded no markup de uma seção em vez de vir de `content/`, (3) arquivo em
+`src/generated/` sem procedência — ou com `sha256` diferente do que a ingestão gravou, que é
+edição à mão depois de gerado —, e (4) `src/engine/` alterado, comparado byte a byte com o
+template. Roda em menos de um segundo, sem navegador e sem build: pode rodar **durante** a fase 4,
+a cada entrega de dev, e não só no fim. Regra sem verificação é conselho, e conselho é ignorado
+quando aperta.
+
+**Quando `brief.assets` tem algum item com `attribution`, um sexto portão roda junto:**
 `check-attribution.ts` — reprova se o crédito de licença sumiu do HTML construído, ou se o link
 do crédito ficou dentro de uma `<section>`/`<article>` (não sobrevive ao corte da seção). Sem
 `assets` com `attribution` no brief, não há crédito a exigir, e ele não é rodado.
@@ -559,11 +632,12 @@ devs perderam no protótipo 01 por causa de um player de música disputando a GP
 |---|---|---|
 | Contraste | ≥ 7:1, medido **por pixel** | **reprova** |
 | FPS | mediana ≥ 60 em GPU real | **reprova** |
+| Estrutura | `check-structure.ts` — arquivo no lugar, texto em `content/`, `generated/` com procedência, `engine/` intocado | **reprova** |
 | Crédito de licença | `check-attribution.ts` — só quando o brief tem `assets` com `attribution` | **reprova** |
 | Bytes | contra o `budget` do brief | **informa** |
 | Build / typecheck / lint / test | verde | **reprova** |
 
-Três armadilhas medidas neste projeto, que você tem que carregar:
+Quatro armadilhas medidas neste projeto, que você tem que carregar:
 
 - **GPU real ou o número é ficção.** Chrome headless puro cai em SwiftShader e mediu 27,2 FPS num
   site que fazia 60,3. Os medidores sobem o Chrome com `--use-gl=angle --use-angle=gl`; se alguém
@@ -575,6 +649,10 @@ Três armadilhas medidas neste projeto, que você tem que carregar:
 - **O medidor de contraste precisa saber o que é texto invisível.** Um parágrafo com `clip-path`
   fechado mediu "2,86:1" porque o medidor lia ruído de fundo e chamava de texto. Antes de aceitar
   uma reprovação de contraste, confirme que o elemento está de fato desenhando glifos.
+- **Contraste é propriedade de toda a faixa de animação, não de um instante.** Uma seção mediu
+  1,13:1 e passou porque a medição caiu numa pose congelada, não no percurso inteiro. Como os sites
+  animam sempre e para todos — `prefers-reduced-motion` não é lido, decisão do dono em PLUGIN-SPEC
+  §5.1 — não existe mais um modo reduzido que "protege" a pior pose de aparecer para alguém.
 
 **Quando um portão reprova:** re-briefe o `visual-dev` dono do arquivo com a falha descrita em
 número. Mesmo erro na 3ª tentativa → reformule por outro ângulo técnico; persistiu → pare e
@@ -607,4 +685,6 @@ usuário: o que passou, o número de cada portão, e o que ficou de fora com o m
       seções.
 - [ ] Cada técnica em `tecnicas.md` tem problema concreto, mecanismo e custo.
 - [ ] Contraste, FPS, build/typecheck/lint/test verdes; bytes medidos e relatados.
+- [ ] `check-structure.ts --project=.` saiu com `0`: cada seção na própria pasta, texto em
+      `src/content/`, `src/generated/` com procedência e `src/engine/` idêntico ao template.
 - [ ] Nenhum briefing que você escreveu contém adjetivo motivacional.

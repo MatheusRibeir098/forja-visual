@@ -28,7 +28,7 @@ interface Engine {
   beats: Beats; // progresso de scroll ancorado no DOM
   pointer: Pointer; // cursor como raio, global
   composite: Composite; // transição por máscara entre duas cenas
-  reducedMotion: boolean; // `prefers-reduced-motion: reduce`
+  reducedMotion: boolean; // sempre `false` hoje — ver §6
   dispose(): void;
 }
 ```
@@ -56,6 +56,15 @@ stop(); // cancela a inscrição
 - `engine.ticker.fps` é a mediana móvel dos últimos 60 quadros — útil para um HUD de debug,
   nunca para decidir caminho de código.
 - `setMode('demand')` desliga o loop contínuo: nada roda até alguém chamar `invalidate()`.
+- **A cadeia de rAF se rearma sozinha.** Um loop de rAF é uma corrente — cada quadro agenda o
+  próximo — e ela pode ser cortada de fora: um inscrito que lança, a aba indo para segundo
+  plano, ou o `requestAnimationFrame` trocado por um stub que devolve 0 (é o que o medidor de
+  contraste do plugin faz para fotografar a página). Quando isso acontecia, **nada** voltava, e
+  a página ficava parada no último quadro desenhado — que podia ser o de outra seção, com fundo
+  de luminância oposta, derrubando o contraste do texto por cima. O ticker agora reagenda num
+  `finally` (o erro do inscrito continua subindo para o console) e tenta de novo a cada 250 ms
+  enquanto o rAF não agendar nada; `invalidate()` é o gatilho imediato, e todo scroll o dispara.
+  Coberto por `ticker.test.ts` — **não** contorne isso com um rAF próprio na sua seção.
 
 **Suavização:** para perseguir um alvo (cursor, scroll, foco) use `damp`, não um lerp fixo:
 
@@ -211,26 +220,57 @@ O tier é detectado uma vez (GPU por software → `low`; ponteiro grosso ou tela
 
 ---
 
-## 6. `prefers-reduced-motion`
+## 6. Movimento reduzido — **ignorado, de propósito**
 
-`engine.reducedMotion` (o mesmo valor de `engine.gl.reducedMotion`) já mudou o motor por você:
+**Este motor não respeita `prefers-reduced-motion: reduce`. O site anima em qualquer
+máquina.** Não é um `TODO`: é decisão de produto do dono, de 26/08/2026, registrada na §5.1 da
+spec do plugin.
 
-- o **ticker vira `demand`** — nada roda sozinho; cada evento sujo (scroll, resize) pede
-  exatamente um quadro via `invalidate()`;
-- o **grão do passe de grade para de animar** (`frame.present(elapsed, !reducedMotion)`).
+Na prática, num sistema com movimento reduzido ligado:
 
-O que sobra para a cena: **o que anima sozinho fica parado.** Órbita automática, ruído no
-tempo, pulsação — tudo isso olha `engine.reducedMotion` e não roda. Movimento **dirigido por
-scroll ou por cursor continua valendo**, porque quem comanda é o usuário.
+- `engine.reducedMotion` vale **`false`** — a mídia nem é consultada (`engine/tier.ts`);
+- o ticker fica em **`always`**, com loop contínuo;
+- o grão do passe de grade **continua animando**;
+- o `scroll-behavior: smooth` do `base.css` vale para todo mundo;
+- `<html data-motion>` sai como `"full"` — ele descreve o que o motor está fazendo, não o que
+  o sistema pediu.
+
+⚠️ **O custo, escrito porque é real:** quem desliga animações por distúrbio vestibular — enjoo,
+vertigem, enxaqueca com movimento na tela — vê tudo se mexendo, e não tem como pedir que pare.
+Consequência direta: **o site não pode ser anunciado como "WCAG 2.2 AA" sem ressalva** — o
+critério 2.3.3 (Animação a partir de interações) não é atendido. O que se entrega de
+acessibilidade é contraste ≥ 7:1 por pixel, foco visível, alvos de toque e semântica.
+
+**Para reverter**, três pontos, todos comentados no código:
+
+1. `src/engine/tier.ts` — troque `const reducedMotion = false` de volta por
+   `window.matchMedia('(prefers-reduced-motion: reduce)').matches`;
+2. `src/styles/base.css` — reponha o `@media (prefers-reduced-motion: no-preference)` em volta
+   do `scroll-behavior: smooth`;
+3. o CSS das suas seções — animação declarativa volta a nascer dentro de um
+   `@media (prefers-reduced-motion: no-preference)`.
+
+Feito isso, o resto do motor obedece sozinho: `engine/index.ts` volta o ticker para `demand` e
+`main.ts` congela a semente do grão. Não há um quarto ponto escondido.
+
+### O que continua valendo para a sua cena
+
+`engine.reducedMotion` continua sendo o lugar certo para uma **animação própria** perguntar se
+deve parar — órbita automática, ruído no tempo, pulsação. Hoje a resposta é sempre "pode
+rodar"; escrever a pergunta mesmo assim custa uma linha e é o que faz a reversão acima ser de
+fato de três linhas.
 
 ```ts
-engine.ticker.subscribe((dt, elapsed) => {
-  if (!engine.reducedMotion) mesh.rotation.y += dt * 0.2; // animação própria: some
-  material.uniforms.uReveal.value = beat.progress; // dirigida por scroll: fica
+engine.ticker.subscribe((dt) => {
+  if (!engine.reducedMotion) mesh.rotation.y += dt * 0.2; // animação própria
+  material.uniforms.uReveal.value = beat.progress; // dirigida por scroll: sempre
 });
 ```
 
-Publicado também em `<html data-motion="reduced|full">`.
+E, independentemente da política: **movimento dirigido por scroll precisa ser fluido.** Um
+quadro por evento de scroll não é movimento contínuo — o navegador agrupa os eventos e o
+resultado lê como engasgo. É por isso que o ticker fica em `always` e a cena lê
+`beat.progress` a cada quadro, em vez de desenhar dentro de um `beat.subscribe()`.
 
 ---
 
@@ -332,13 +372,13 @@ próprios (geometria, material, render target, listener) devolve a própria fun�
 
 ## Erros que este motor existe para tornar impossíveis
 
-| Sintoma                                         | Causa                                                  | Onde está a regra |
-| ----------------------------------------------- | ------------------------------------------------------ | ----------------- |
-| Uma seção apaga as outras                       | `renderer.clear()` fora do `beginFrame`                | §7.2              |
-| Seção desenha sobre a vizinha, sem erro         | trocou de render target e usou `renderer.setScissor()` | §7.3              |
-| Animação corre mais rápido em monitor de 120 Hz | integrou sem `dt`                                      | §1                |
-| Coreografia desalinha quando um texto cresce    | posição de scroll cravada                              | §3                |
-| Cursor só afeta parte da cena                   | distância 3D até um ponto, em vez do raio              | §4                |
-| Raio do cursor errado numa seção                | outra cena chamou `setCamera` depois                   | §4                |
-| `low` quebra e ninguém percebe                  | tier virou `if`, não número                            | §5                |
-| Nada se move para quem pediu menos movimento    | esqueceu `reducedMotion` numa animação própria         | §6                |
+| Sintoma                                           | Causa                                                  | Onde está a regra |
+| ------------------------------------------------- | ------------------------------------------------------ | ----------------- |
+| Uma seção apaga as outras                         | `renderer.clear()` fora do `beginFrame`                | §7.2              |
+| Seção desenha sobre a vizinha, sem erro           | trocou de render target e usou `renderer.setScissor()` | §7.3              |
+| Animação corre mais rápido em monitor de 120 Hz   | integrou sem `dt`                                      | §1                |
+| Coreografia desalinha quando um texto cresce      | posição de scroll cravada                              | §3                |
+| Cursor só afeta parte da cena                     | distância 3D até um ponto, em vez do raio              | §4                |
+| Raio do cursor errado numa seção                  | outra cena chamou `setCamera` depois                   | §4                |
+| `low` quebra e ninguém percebe                    | tier virou `if`, não número                            | §5                |
+| A página inteira congela no quadro de outra seção | cadeia de rAF cortada; o rearme mora no `ticker`       | §1                |

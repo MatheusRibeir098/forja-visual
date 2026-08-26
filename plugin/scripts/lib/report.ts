@@ -49,12 +49,29 @@ export interface BundleMeasurement {
 export type ContrastStatus =
   'medido' | 'nao-desenhado' | 'fundo-instavel' | 'amostra-insuficiente';
 
+/**
+ * Um trecho de texto visto em vários instantes da animação.
+ *
+ * `ratio` é o **pior** desses instantes, não uma média e não o instante em que a foto calhou
+ * de sair: contraste é propriedade de toda a faixa de animação. `worstPhaseMs` diz onde
+ * dentro do ciclo aquilo aconteceu — sem esse campo, quem for consertar não sabe onde olhar.
+ */
 export interface ContrastSample {
   readonly selector: string;
   readonly text: string;
   readonly status: ContrastStatus;
-  /** Razão WCAG medida por pixel; `null` quando o status não é `medido`. */
+  /** Pior razão WCAG entre os instantes amostrados; `null` quando o status não é `medido`. */
   readonly ratio: number | null;
+  /** Melhor razão do mesmo ciclo — a distância até `ratio` é o tamanho do balanço. */
+  readonly bestRatio: number | null;
+  /** Instante do pior caso, em ms desde o fim da revelação de entrada daquela faixa. */
+  readonly worstPhaseMs: number | null;
+  /** Janela de ciclo amostrada na faixa deste elemento, em ms. */
+  readonly cycleMs: number | null;
+  /** Em quantos instantes o elemento rendeu número (os outros não tinham glifo, p.ex.). */
+  readonly phasesMeasured: number;
+  /** `false` quando a revelação de entrada ainda rodava — o número ali é indício, não prova. */
+  readonly entrySettled: boolean;
   /**
    * Razão prevista pelas cores computadas (`color` sobre o fundo observado). Serve para
    * dizer se um texto `nao-desenhado` vai nascer legível quando a revelação terminar.
@@ -62,10 +79,26 @@ export interface ContrastSample {
   readonly cssRatio: number | null;
   /** Fração do retângulo de texto coberta por glifo — 0 significa nada desenhado. */
   readonly glyphCoverage: number;
+  /** Recorte do pior instante — é dele que sai o print do pior caso. */
   readonly clip: Clip;
 }
 
+/**
+ * O veredito do portão de contraste.
+ *
+ * `inconclusivo` existe para não aprovar o que não foi visto: faixa cuja entrada não assentou
+ * dentro do teto, ou fundo que nem congelado parou. É diferente de `abaixo-do-piso` (defeito
+ * medido) e de `medicao-invalida` (a técnica de isolar tinta por diferença não valeu ali).
+ */
+export type ContrastVerdict =
+  | 'ok'
+  | 'abaixo-do-piso'
+  | 'inconclusivo'
+  | 'medicao-invalida'
+  | 'nada-mensuravel';
+
 export interface ContrastMeasurement {
+  /** O pior instante do pior elemento — o número que decide o portão. */
   readonly minContrast: number;
   readonly floor: number;
   readonly worst: ContrastSample | null;
@@ -76,8 +109,29 @@ export interface ContrastMeasurement {
   /** Elementos com texto no DOM e zero glifo na tela — revelação em curso ou defeito. */
   readonly notDrawn: readonly ContrastSample[];
   readonly unstable: readonly ContrastSample[];
+  /** Quantos instantes de cada faixa foram fotografados. */
+  readonly phases: number;
+  /** Maior janela de ciclo amostrada, em ms. */
+  readonly sampledCycleMs: number;
+  /** Quantas paradas a varredura fez. */
+  readonly bands: number;
+  /** `true` quando a faixa do pior caso ganhou a segunda passada de instantes intercalados. */
+  readonly refinedBand: boolean;
+  /** Faixas em que a revelação de entrada não terminou dentro do teto de espera. */
+  readonly unsettledBands: number;
+  /** Faixas em que nada se mexia — um instante bastou para descrevê-las. */
+  readonly stillBands: number;
+  /** Faixas que continuaram se mexendo mesmo congeladas — nenhum número saiu delas. */
+  readonly driftingBands: number;
+  /** Estado em que a página foi medida — o padrão é COM movimento (§5.1 da spec). */
+  readonly reducedMotion: boolean;
+  /** `true` quando a página anima por `requestAnimationFrame` (ciclo não declarado). */
+  readonly rafDriven: boolean;
   readonly renderer: string;
   readonly viewport: string;
+  /** Quanto a medição custou de relógio, em ms. */
+  readonly durationMs: number;
+  readonly verdict: ContrastVerdict;
   readonly measuredAt: string;
 }
 

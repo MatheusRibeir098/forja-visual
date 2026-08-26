@@ -35,6 +35,8 @@ medidor com escopo diferente? Cópia **read-only e escopada** do script, apagada
 
 | Convenção | Valor |
 |---|---|
+| Seção | uma pasta: `src/sections/<nome>/index.ts` exportando `mountSection(root, engine)`; texto em `src/content/<nome>.ts` |
+| Página de inspeção | `dev/<nome>.html` + `dev/<nome>.ts`, uma por seção — é por elas que você olha uma técnica isolada |
 | Variantes da fase 2 | `src/variants/<id>/index.ts`, cada uma exportando `mountHero(root, engine)` — `<id>` é `a`, `b`, `c`… até `variantCount` (`brief.variantCount`, 2 a 5) |
 | URLs das variantes | `/dev/<id>.html` para cada `<id>` (`pnpm dev`) — é por elas que você mede e fotografa |
 | Artefatos de controle | `.forge-visual/` na raiz do projeto: `brief.json`, `hates.md`, `variantes.json`, `medicoes/`, `screenshots/` |
@@ -51,6 +53,7 @@ morto a reportar: são registro de rejeição, por desenho.
 | Build · typecheck · lint · test | verde | **reprova** — e aborta o resto |
 | Contraste | **≥ 7:1**, por pixel | **reprova** |
 | FPS | mediana **≥ 60** em GPU real | **reprova** |
+| Estrutura | `check-structure.ts` — arquivo no lugar, texto em `content/`, `generated/` com procedência, `engine/` intocado | **reprova** |
 | Crédito de licença e fonte do asset | `check-attribution.ts` — só quando o brief tem `assets` | **reprova** |
 | Bytes | contra o `budget` do brief | **informa — nunca reprova** |
 
@@ -71,7 +74,30 @@ pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-contrast.ts" --project=. --
 pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/measure-fps.ts"      --project=. --min=60 --runs=3
 ```
 
-**Quando o brief tem `assets`, um quinto portão:** `check-attribution.ts` cobra do HTML
+**O portão da estrutura roda sempre, e é o mais barato de todos** — sem navegador, sem build,
+menos de um segundo:
+
+```bash
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=.
+pnpm exec tsx "${CLAUDE_PLUGIN_ROOT}/scripts/check-structure.ts" --project=. --json   # o mesmo, em JSON
+```
+
+Ele lê a árvore de arquivos e reprova quatro coisas: **(1)** arquivo de seção fora de
+`src/sections/<nome>/` — ou pasta de seção sem `index.ts` exportando `mountSection`, ou CSS de
+seção morando em `src/styles/`; **(2)** texto visível hardcoded no markup de uma seção
+(`textContent`, `innerHTML`, `insertAdjacentHTML`, HTML com prosa em literal, `aria-label`/`alt`/
+`title`) em vez de vir de `src/content/<nome>.ts`; **(3)** arquivo em `src/generated/` sem
+procedência, ou com `sha256` diferente do que a ingestão gravou — que é edição à mão depois de
+gerado; **(4)** `src/engine/` alterado, comparado byte a byte com `templates/site/src/engine/`.
+
+Isto reprova pelo mesmo motivo que contraste reprova: a estrutura é o que torna o paralelismo da
+fase 4 possível (*arquivos disjuntos*), e regra sem verificação é conselho. **Rode-o antes dos
+medidores** — ele é instantâneo e a falha dele é exata, com arquivo e linha. Duas notas de uso:
+`--no-engine` pula a comparação do motor (útil se o site nasceu de uma versão anterior do
+template — diga isso no JSON em vez de dar o motor por bom); a "nota" sobre seção sem
+`dev/<nome>.html` é informativa e **não** reprova.
+
+**Quando o brief tem `assets`, um sexto portão:** `check-attribution.ts` cobra do HTML
 construído o que a licença obriga — e é a única verificação do plugin que olha `.forge-visual/assets.json`.
 
 ```bash
@@ -131,11 +157,13 @@ de saída de cada um. Eles sobem o preview sozinhos a partir de
 | `1` | **reprovou** o piso (contraste/FPS) | contrast, fps | **FALHOU** | correção do valor, com o pior caso e o seletor |
 | `1` | **não foi possível medir** | bundle | **FALHOU** tipo `medicao` | `dist/` ausente ou ilegível — rode o build antes |
 | `1` | **crédito ausente** ou fonte do asset dentro do repo | attribution | **FALHOU** | é obrigação de licença, não acabamento: o script imprime a marcação exata que falta |
+| `1` | **arquivo fora do lugar**, texto hardcoded, `generated/` sem procedência ou `engine/` alterado | structure | **FALHOU** | cada linha do relatório traz o arquivo, a linha e a ação depois da seta — repasse-as literais ao dev dono |
 | `1` | **fora da faixa de luminância atribuída** (`--bg-min`/`--bg-max`) | variant | reporte no `variant_card`; a comparação entre as `variantCount` variantes continua sendo do orquestrador | a variante violou a pré-atribuição — é candidata a re-briefe, não um bug do medidor |
 | `2` | medição inválida: caiu em **SwiftShader** (GPU de software) | fps, variant | **FALHOU** tipo `medicao` | máquina/driver sem GPU acessível. O número medido não descreve usuário nenhum — **não é otimização de código** |
 | `3` | **inconclusivo**: a falha não reproduziu entre execuções, ou a máquina estava disputada | fps, variant | **FALHOU** tipo `medicao` | ⛔ **"isole a máquina e remeça"** — nunca "corte o efeito" |
 | `4` | nada mensurável na página | contrast, variant | **FALHOU** tipo `medicao` | nenhum elemento desenhou glifo, ou o fundo não parou: `--reveal` maior, ou a revelação não terminou |
 | `4` | **nada verificável**: não há HTML construído a ler | attribution | **FALHOU** tipo `medicao` | rode o build antes, ou passe `--build` |
+| `4` | **nada verificável**: o projeto não tem `src/` | structure | **FALHOU** tipo `medicao` | você está medindo a pasta errada — confira `--project` |
 
 ⚠️ **`bundle` sai com `1` quando falha em medir, não quando estoura o orçamento.** Estourar o
 orçamento sai com `0` e imprime o excedente: bytes **informam**. Tratar o `1` do bundle como
@@ -192,7 +220,10 @@ Protocolo, antes de reprovar por desempenho:
   tela se lê bem é suspeita de **elemento invisível formalmente visível** — reporte como isso, com
   o seletor, e não como falha de cor.
 - **Um instante não prova a faixa.** Texto revelado por progresso precisa ser medido ao longo de
-  0→1 (amostre frames a cada ~25–100 ms), não só no estado final.
+  0→1 (amostre frames a cada ~25–100 ms), não só no estado final. Isto vale sempre, sem exceção: a
+  ferramenta não reduz movimento por preferência (`prefers-reduced-motion` não é lido — PLUGIN-SPEC
+  §5.1), então não existe pose "segura" a assumir — uma seção já mediu 1,13:1 e passou porque a
+  medição caiu numa pose congelada em vez de varrer o percurso inteiro.
 - Reporte sempre **o pior caso com o seletor** (`p.pr-id a 6,53:1`), porque é o que o dev conserta.
 
 ## Screenshots — poucas, e descritas
@@ -218,10 +249,15 @@ bordas, sobreposição durante a transição — e capture no máximo o estado q
 
 Rode estas quando a tarefa toca o loop ou o pipeline; são baratas e pegam o que a imagem esconde:
 
+- `check-structure.ts --project=.` → **0**. Ele já cobre "seção fora da pasta", "texto no markup",
+  "`generated/` editado à mão" e "`engine/` alterado" — não refaça essas quatro por grep.
 - `grep -rn "requestAnimationFrame" src/` → deve dar **1**.
 - `grep -rn "postprocessing\|EffectComposer\|gsap\|lenis\|@react-three" src/ package.json` → vazio.
 - `getBoundingClientRect` fora do lote de leitura do quadro.
-- Reduced-motion: dois quadros em instantes diferentes, **idênticos byte a byte**, sem rAF extra.
+- Movimento por scroll (regra 8): dispare eventos `wheel`/`scroll` sintéticos espaçados de poucos
+  milissegundos e conte quadros pintados entre o primeiro e o último — tem de haver **mais de um
+  quadro por evento de entrada** (progresso lido pelo ticker, não escrito no handler). Não confira
+  `prefers-reduced-motion`: a ferramenta não lê essa preferência, por decisão de produto.
 - `scrollWidth === clientWidth` em 375 px.
 - `:focus-visible` visível sobre o fundo real da seção.
 - Com `assets` no brief: `grep -rn "STLLoader\|OBJLoader\|GLTFLoader\|DRACOLoader" src/` → **vazio**
@@ -244,10 +280,11 @@ Sua **última mensagem** é o valor de retorno. Retorne exatamente este JSON:
     "contraste_min": { "valor": 7.93, "pior_caso": "p.relevo__limit", "ok": true },
     "fps": { "mediana": 59.9, "execucoes": [59.9, 59.9, 59.8], "ok": true },
     "bytes": { "critico_kb": 176.5, "lazy_kb": 2043.0, "referencia_kb": 600, "informativo": true },
-    "credito": { "assets_com_credito": 1, "todos_como_link_fora_de_secao": true, "dom_vivo_conferido": true, "ok": true }
+    "credito": { "assets_com_credito": 1, "todos_como_link_fora_de_secao": true, "dom_vivo_conferido": true, "ok": true },
+    "estrutura": { "violacoes": 0, "motor_conferido": true, "ok": true }
   },
   "ambiente": { "renderer": "ANGLE (Intel, Mesa Intel Graphics ...)", "isolada": true, "observacao": "ps limpo; sem disputa de GPU" },
-  "codigos_de_saida": { "measure_contrast": 0, "measure_fps": 3, "measure_bundle": 0, "measure_variant": null, "check_attribution": 0 },
+  "codigos_de_saida": { "measure_contrast": 0, "measure_fps": 3, "measure_bundle": 0, "measure_variant": null, "check_attribution": 0, "check_structure": 0 },
   "falhas": [{ "tipo": "build|e2e|visual|medicao|acessibilidade", "onde": "seletor ou arquivo", "viewport": "desktop|mobile", "descricao": "erro exato e localizado — o orquestrador não abre a imagem" }],
   "screenshots": ["/caminho/abs/.forge-visual/screenshots/hero-desktop.png"],
   "logs_relevantes": ["só o trecho que importa — nunca o log inteiro"],

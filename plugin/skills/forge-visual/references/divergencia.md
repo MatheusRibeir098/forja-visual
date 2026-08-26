@@ -367,7 +367,9 @@ A comparação é entre direções, não entre acabamentos.
 - Given a página em 1280×720 dpr 2, When medida com `measure-contrast`, Then contraste ≥ 7:1.
 - Given a página em repouso, When medida com `measure-fps` em GPU real, Then mediana ≥ 60.
 - Given 375×667, When carregada, Then `scrollWidth === clientWidth` e nada corta.
-- Given `prefers-reduced-motion: reduce`, When carregada, Then não há animação contínua.
+- Given uma sequência de eventos `scroll`/`wheel` sintéticos espaçados de poucos milissegundos,
+  When a seção anima por esse progresso, Then mais de um quadro é pintado por evento de entrada
+  (movimento contínuo lido pelo ticker, não escrito dentro do handler).
 - Given cada check de `hates.md`, When aplicado a esta tela, Then passa.
 - Given um asset com `attribution`, When usado, Then o crédito está na tela como `<a>` real.
 - Toda constante mágica tem comentário com a medição que a justifica (método + data).
